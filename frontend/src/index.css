@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+/*
+  Field briefing board
+  Cool gray room. White work sheets. One orange for action/alert.
+  No gold captions, no dual labels, no dashboard-template chrome.
+*/
+@theme {
+  --font-sans: "Manrope", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", ui-monospace, monospace;
+  --color-bg: #d8dee6;
+  --color-panel: #ffffff;
+  --color-panel-2: #f3f5f8;
+  --color-line: #b4bcc8;
+  --color-text: #121820;
+  --color-muted: #4a5565;
+  --color-blue: #1f4b7a;
+  --color-cyan: #1f4b7a;
+  --color-yellow: #c2410c;
+  --color-orange: #e85d04;
+  --color-red: #c1121f;
+  --color-green: #1b7a4a;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 500;
+  background:
+    linear-gradient(180deg, #e4e9ef 0%, #d8dee6 48%, #d2d8e0 100%);
+  background-attachment: fixed;
+}
+
+button,
+select,
+input {
+  font-family: inherit;
+  color: var(--color-text);
+}
+
+button.cmd {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #98a2b0;
+  background: #ffffff;
+  color: #121820;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.cmd:hover:not(:disabled) {
+  border-color: #121820;
+  background: #f3f5f8;
+}
+
+button.cmd:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button.cmd.primary {
+  background: #e85d04;
+  border-color: #e85d04;
+  color: #ffffff;
+}
+
+button.cmd.primary:hover:not(:disabled) {
+  background: #d14f00;
+  border-color: #d14f00;
+}
+
+button.cmd.active {
+  border-color: #e85d04;
+  background: #fff1e7;
+  color: #c2410c;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+select.field {
+  height: 36px;
+  border: 1px solid #98a2b0;
+  background: #ffffff;
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
