@@ -8,18 +8,16 @@ const STREAMS: Array<{ title: string; items: string[] }> = [
 ];
 
 const STEPS = [
-  "Software simulation",
-  "Sensor bench testing",
-  "Robot chassis integration",
-  "Knock mechanism",
-  "Acoustic and vibration experiments",
-  "Adaptive search validation",
-  "Optional cloud model",
-  "Hosted demo",
-  "Controlled rubble demonstration",
-  "Hackathon demonstration",
+  "Explore the search area",
+  "Stop at a probe location",
+  "Knock on the surface",
+  "Listen for a response",
+  "Score the simulated signals",
+  "Update the search map",
+  "Pick the next probe location",
+  "Repeat the search process",
+  "Mark a location for human verification",
 ];
-
 export function About() {
   return (
     <div className="mx-auto grid max-w-5xl gap-3">
@@ -29,10 +27,10 @@ export function About() {
         <p className="mt-1 text-muted">Dashboard for the RubbleEcho rover. ACM 2026 hackathon.</p>
         <p className="mt-1 text-[13px] tracking-[0.08em] text-yellow">Knock. Listen. Locate.</p>
         <p className="mt-4 max-w-3xl text-[15px] leading-7">
-          RubbleEcho is a search-and-rescue rover project. The robot is meant to move through debris, stop, knock, and use the vibration and sound that come back to decide where to look next. This software is the mission dashboard and the bench test for that rover.
+        After a building collapses, much of the search area is hidden beneath debris. A trapped person may not be visible or able to call for help, but they might respond to a knock. RubbleEcho explores the idea of using knocks, listening, and simulated sensor readings to decide where to search next.
         </p>
         <p className="mt-3 max-w-3xl text-[14px] leading-6 text-muted">
-          Developed by McNeeseNexus. This software is a simulation prototype. Outputs are estimated and are not validated life-safety measurements.
+        RubbleEcho is currently a software simulation, not a physical robot or a working rescue sensor. Its readings and confidence scores are simulated estimates, not verified measurements. It cannot locate real people and must not be used to make rescue decisions.
         </p>
       </section>
       <section className="border border-line bg-panel p-5">
@@ -51,7 +49,7 @@ export function About() {
         </div>
       </section>
       <section className="border border-line bg-panel p-5">
-        <h2 className="text-[11px] uppercase tracking-[0.16em] text-muted">Next steps</h2>
+        <h2 className="text-[11px] uppercase tracking-[0.16em] text-muted">How the rover searches.</h2>
         <ol className="mt-4 grid gap-2 sm:grid-cols-2">
           {STEPS.map((step, index) => (
             <li key={step} className="flex gap-3 text-[14px]">
@@ -61,6 +59,23 @@ export function About() {
           ))}
         </ol>
       </section>
+      <section className="border border-line bg-panel p-5">
+  <h2 className="text-[11px] uppercase tracking-[0.16em] text-muted">
+    Hardware later
+  </h2>
+  <p className="mt-3 text-[14px] leading-6 text-muted">
+    These are planned hardware components for future development.
+    They are not connected to the current simulation.
+  </p>
+  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+    {["Robot chassis", "Knock mechanism", "Microphone and piezo sensors", "Camera"].map((item) => (
+      <div key={item} className="border border-line p-3">
+        <h3 className="text-[14px] font-medium">{item}</h3>
+        <p className="mt-2 text-[13px] text-muted">Not connected</p>
+      </div>
+    ))}
+  </div>
+</section>
     </div>
   );
 }
