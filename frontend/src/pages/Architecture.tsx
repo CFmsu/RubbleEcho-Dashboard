@@ -1,13 +1,12 @@
 const FLOW = [
-  "Physical environment",
-  "RubbleEcho robot",
-  "Sensors — camera, microphone, piezo, striker",
+  "Simulated search environment",
+  " Simulated RubbleEcho robot",
+  " Simulated sensor inputs — camera, microphone, piezo, striker",
   "Edge processing",
   "Sensor fusion",
   "Search map",
-  "Next probe choice",
   "Next probe selection",
-  "Robot navigation",
+  " Simulated Robot navigation",
   "Human rescue team",
 ];
 
