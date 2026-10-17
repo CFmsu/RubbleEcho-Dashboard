@@ -155,17 +155,21 @@ useEffect(() => {
         )}
       </div>
       
-      <div className="flex flex-wrap gap-3">
-        {(['demo', 'start', 'pause', 'resume', 'step', 'reset'] as MissionAction[]).map(
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+        {['Demo', 'Start', 'Pause', 'Resume', 'Step', 'Reset'].map(
           (action) => (
             <button
               key={action}
               type="button"
-              disabled={!backendOnline || sending}
-              onClick={() => handleCommand(action)}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+              onClick={() => handleCommand(action.toLowerCase() as MissionAction)}
+              disabled={!backendOnline}
+              className="w-full rounded-lg bg-blue-600 px-2 py-3
+                        text-center text-sm font-medium text-white
+                        hover:bg-blue-700
+                        disabled:cursor-not-allowed
+                        disabled:bg-slate-400"
             >
-              {action.charAt(0).toUpperCase() + action.slice(1)}
+              {action}
             </button>
           )
         )}
