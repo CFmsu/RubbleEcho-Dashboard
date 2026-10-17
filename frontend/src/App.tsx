@@ -119,7 +119,10 @@ function App() {
 
             {/* Mission Controls */}
             <div className="mt-6">
-              <MissionControls />
+              <MissionControls
+                missionStatus={telemetry.mission.status}
+                telemetryConnected={connectionStatus === 'connected'}
+              />
             </div>
 
           </section>

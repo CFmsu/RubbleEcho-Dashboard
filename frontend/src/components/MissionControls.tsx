@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from 'react'
-import type { Scenario } from '../types/telemetry'
+import type { Scenario, MissionStatus } from '../types/telemetry'
 import { sendMissionCommand } from '../api/mission'
 import type { MissionAction } from '../api/mission'
 
@@ -11,33 +11,42 @@ const fallbackScenarios: Scenario[] = [
   'collapse',
 ]
 
-function MissionControls() {
+interface MissionControlsProps {
+  missionStatus: MissionStatus
+  telemetryConnected: boolean
+}
+
+function MissionControls({
+  missionStatus,
+  telemetryConnected,
+}: MissionControlsProps) {
   const [scenario, setScenario] = useState<Scenario>('collapse')
   const [scenarios, setScenarios] =
     useState<Scenario[]>(fallbackScenarios)
   const [usingFallback, setUsingFallback] = useState(true)
 
-const [backendOnline, setBackendOnline] = useState(false)
-const [sending, setSending] = useState(false)
-const [commandError, setCommandError] = useState('')
-const [commandMessage, setCommandMessage] = useState('')
+  const [backendOnline, setBackendOnline] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [commandError, setCommandError] = useState('')
+  const [commandMessage, setCommandMessage] = useState('')
 
-const handleCommand = async (action: MissionAction) => {
-  if (!backendOnline || sending) return
 
-  setSending(true)
-  setCommandError('')
-  setCommandMessage('')
+  const handleCommand = async (action: MissionAction) => {
+    if (!backendOnline || sending) return
 
-  try {
-    await sendMissionCommand(action, scenario)
-    setCommandMessage(`${action} command sent successfully.`)
-  } catch {
-    setCommandError(`Failed to send ${action} command.`)
-  } finally {
-    setSending(false)
+    setSending(true)
+    setCommandError('')
+    setCommandMessage('')
+
+    try {
+      await sendMissionCommand(action, scenario)
+      setCommandMessage(`${action} command sent successfully.`)
+    } catch {
+      setCommandError(`Failed to send ${action} command.`)
+    } finally {
+      setSending(false)
+    }
   }
-}
 
   
 useEffect(() => {
@@ -85,20 +94,36 @@ useEffect(() => {
         const data: unknown = await response.json()
 
         // Validate the response before using it
-        if (
-          !Array.isArray(data) ||
-          !data.every(
-            (item) =>
-              item === 'earthquake' ||
-              item === 'flood' ||
-              item === 'collapse'
-          ) ||
-          data.length === 0
-        ) {
+        
+        const validIds: Scenario[] = [
+          'earthquake',
+          'flood',
+          'collapse',
+        ]
+
+        if (!Array.isArray(data) || data.length === 0) {
           throw new Error('Invalid scenario response')
         }
 
-        const available = data as Scenario[]
+        const available: Scenario[] = data.map((item: unknown) => {
+          if (typeof item !== 'object' || item === null) {
+            throw new Error('Invalid scenario object')
+          }
+
+          const scenario = item as Record<string, unknown>
+
+          if (
+            typeof scenario.id !== 'string' ||
+            !validIds.includes(scenario.id as Scenario) ||
+            typeof scenario.label !== 'string' ||
+            typeof scenario.width !== 'number' ||
+            typeof scenario.height !== 'number'
+          ) {
+            throw new Error('Invalid scenario fields')
+          }
+
+          return scenario.id as Scenario
+        })
 
         setScenarios(available)
         setUsingFallback(false)
@@ -118,6 +143,61 @@ useEffect(() => {
 
     return () => controller.abort()
   }, [])
+
+  
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!backendOnline || sending) return
+
+      const target = event.target
+
+      // Ignore shortcuts while typing or selecting a scenario
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName))
+      ) {
+        return
+      }
+
+      if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) {
+        return
+      }
+      
+      switch (event.key.toLowerCase()) {
+        case ' ':
+          if (!telemetryConnected) return
+
+          if (missionStatus === 'ACTIVE') {
+            event.preventDefault()
+            void handleCommand('pause')
+          } else if (missionStatus === 'PAUSED') {
+            event.preventDefault()
+            void handleCommand('resume')
+          }
+          break
+
+        case 'n':
+          void handleCommand('step')
+          break
+
+        case 'r':
+          void handleCommand('reset')
+          break
+
+        case 'd':
+          void handleCommand('demo')
+          break
+      }
+
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  })
 
   return (
     <div className="rounded-xl bg-white p-6 shadow-sm">
@@ -161,8 +241,9 @@ useEffect(() => {
             <button
               key={action}
               type="button"
+              aria-label={`${action} mission`}
               onClick={() => handleCommand(action.toLowerCase() as MissionAction)}
-              disabled={!backendOnline}
+              disabled={!backendOnline || sending}
               className="w-full rounded-lg bg-blue-600 px-2 py-3
                         text-center text-sm font-medium text-white
                         hover:bg-blue-700
@@ -175,7 +256,6 @@ useEffect(() => {
         )}
       </div>
 
-      
       {!backendOnline && (
         <p className="mt-4 text-sm text-amber-700">
           Mission controls unavailable. Backend is offline.

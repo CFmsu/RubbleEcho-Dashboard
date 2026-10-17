@@ -20,7 +20,7 @@ export function useTelemetry() {
   useEffect(() => {
     // Temporary URL until backend details are confirmed
     const wsUrl =
-      import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws'
+        import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws/telemetry'
 
     let socket: WebSocket | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
