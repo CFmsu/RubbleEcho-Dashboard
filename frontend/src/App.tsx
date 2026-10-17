@@ -5,11 +5,13 @@ import MissionStatus from './components/MissionStatus'
 import MissionControls from './components/MissionControls'
 import HowItWorks from './components/HowItWorks'
 import About from './components/About'
+import { useTelemetry } from './hooks/useTelemetry'
 
 type Page = 'live' | 'how' | 'about'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('live')
+  const { telemetry, connectionStatus } = useTelemetry()
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -71,30 +73,50 @@ function App() {
               Watch the RubbleEcho rover simulation.
             </p>
 
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
-              Simulated demo. These numbers are not field measurements.
+            {/* Backend Connection Status */}
+            <div className="mb-6">
+              <span
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 font-medium ${
+                  connectionStatus === 'connected'
+                    ? 'bg-green-100 text-green-700'
+                    : connectionStatus === 'connecting'
+                      ? 'bg-yellow-100 text-yellow-700'
+                      : 'bg-red-100 text-red-700'
+                }`}
+              >
+                <span
+                  className={`h-3 w-3 rounded-full ${
+                    connectionStatus === 'connected'
+                      ? 'bg-green-500'
+                      : connectionStatus === 'connecting'
+                        ? 'bg-yellow-500'
+                        : 'bg-red-500'
+                  }`}
+                />
+
+                {connectionStatus === 'connected'
+                  ? 'Telemetry Connected'
+                  : connectionStatus === 'connecting'
+                    ? 'Connecting to Telemetry...'
+                    : 'Telemetry Disconnected'}
+              </span>
             </div>
-            
+
+
             {/* Rover Map and Mission Status */}
             <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
               <RoverMap
-                robot={{ x: 4, y: 5 }}
-                probes={[
-                  { id: 'P01', x: 3, y: 4, confidence: 0.22 },
-                  { id: 'P02', x: 6, y: 7, confidence: 0.41 },
-                ]}
+                robot={telemetry.robot}
+                probes={telemetry.probes}
               />
 
               <MissionStatus
-                confidence={0.41}
-                phase="listen"
-                events={[
-                  'Stopped.',
-                  'Knocked.',
-                  'Listening.',
-                ]}
+                confidence={telemetry.mission.confidence}
+                phase={telemetry.mission.phase}
+                events={telemetry.events}
               />
             </div>
+
             {/* Mission Controls */}
             <div className="mt-6">
               <MissionControls />
