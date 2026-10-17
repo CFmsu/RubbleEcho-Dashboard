@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import type { Telemetry } from '../types/telemetry'
 import sampleTelemetry from '../data/sampleTelemetry.json'
+import { isValidTelemetry } from '../types/telemetryValidation'
 
 type ConnectionStatus =
   | 'connecting'
@@ -21,49 +22,76 @@ export function useTelemetry() {
     const wsUrl =
       import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws'
 
-    let socket: WebSocket
+    let socket: WebSocket | null = null
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    let isUnmounted = false
 
-    try {
-      socket = new WebSocket(wsUrl)
-    } catch {
-      setConnectionStatus('disconnected')
-      return
-    }
+    const connect = () => {
+      if (isUnmounted) return
 
-    socket.onopen = () => {
-      setConnectionStatus('connected')
-    }
+      setConnectionStatus('connecting')
 
-    socket.onmessage = (event) => {
       try {
-        const data: unknown = JSON.parse(event.data)
-
-        // Basic validation before updating the dashboard
-        if (
-          typeof data === 'object' &&
-          data !== null &&
-          'mission' in data &&
-          'robot' in data &&
-          'probes' in data &&
-          'events' in data
-        ) {
-          setTelemetry(data as Telemetry)
-        }
+        socket = new WebSocket(wsUrl)
       } catch {
-        console.error('Invalid WebSocket telemetry')
+        setConnectionStatus('disconnected')
+        scheduleReconnect()
+        return
+      }
+
+      socket.onopen = () => {
+        if (isUnmounted) return
+        setConnectionStatus('connected')
+      }
+
+      socket.onmessage = (event) => {
+        try {
+          const data: unknown = JSON.parse(event.data)
+
+          if (isValidTelemetry(data)) {
+            setTelemetry(data)
+          } else {
+            console.warn('Invalid telemetry structure received')
+          }
+        } catch {
+          console.error('Failed to parse WebSocket telemetry')
+        }
+      }
+
+      socket.onerror = () => {
+        if (isUnmounted) return
+        setConnectionStatus('disconnected')
+      }
+
+      socket.onclose = () => {
+        if (isUnmounted) return
+
+        setConnectionStatus('disconnected')
+        scheduleReconnect()
       }
     }
 
-    socket.onerror = () => {
-      setConnectionStatus('disconnected')
+    const scheduleReconnect = () => {
+      if (isUnmounted || reconnectTimer !== null) return
+
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null
+        connect()
+      }, 3000)
     }
 
-    socket.onclose = () => {
-      setConnectionStatus('disconnected')
-    }
+    connect()
 
     return () => {
-      socket.close()
+      isUnmounted = true
+
+      if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer)
+      }
+
+      if (socket) {
+        socket.close()
+      }
     }
   }, [])
 
