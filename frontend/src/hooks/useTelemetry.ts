@@ -18,9 +18,12 @@ export function useTelemetry() {
     useState<ConnectionStatus>('connecting')
 
   useEffect(() => {
-    // Temporary URL until backend details are confirmed
-    const wsUrl =
-        import.meta.env.VITE_WS_URL || 'ws://localhost:8081/ws/telemetry'
+    const wsProtocol =
+    window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  
+  const wsUrl =
+    import.meta.env.VITE_WS_URL ||
+    `${wsProtocol}//${window.location.host}/ws/telemetry`
 
     let socket: WebSocket | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
