@@ -1,0 +1,9 @@
+
+# Local Python environment and generated files
+backend/.venv/
+backend/__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Generated simulation state
+backend/data/last_mission.json

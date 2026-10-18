@@ -1,0 +1,33 @@
+
+{
+  "mission": {
+    "status": "ACTIVE",
+    "phase": "listen",
+    "scenario": "collapse",
+    "probe_count": 2,
+    "confidence": 0.41
+  },
+  "robot": {
+    "x": 8,
+    "y": 3
+  },
+  "probes": [
+    {
+      "id": "P01",
+      "x": 3,
+      "y": 4,
+      "confidence": 0.22
+    },
+    {
+      "id": "P02",
+      "x": 6,
+      "y": 7,
+      "confidence": 0.41
+    }
+  ],
+  "events": [
+    "Stopped.",
+    "Knocked.",
+    "Listening."
+  ]
+}
