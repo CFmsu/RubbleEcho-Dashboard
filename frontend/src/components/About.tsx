@@ -12,6 +12,12 @@ function About() {
         vibration measurements and use those observations
         to guide its next actions.
       </p>
+      <p className="mb-8 text-lg text-slate-600">
+        After a collapse, much of the search area can be hidden.
+        A person may only respond if something prompts them.
+        RubbleEcho explores how a rover concept could help identify
+        locations for a person to investigate.
+      </p>
       <div className="mb-8 rounded-xl bg-white p-6 shadow-sm">
         <h3 className="mb-4 text-xl font-semibold">
         The Nine-Step Search Process
