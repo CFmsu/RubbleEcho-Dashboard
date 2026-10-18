@@ -63,9 +63,11 @@ function About() {
           </h3>
 
           <p className="text-slate-600">
-            RubbleEcho is currently under development.
-            Dashboard displays are preliminary and
-            backend integration is still pending.
+          RubbleEcho is currently under development.
+          The dashboard is integrated with a local simulation
+          backend. Live telemetry and mission controls are
+          being tested; physical rover hardware integration
+          remains future work.
           </p>
         </div>
       </div>
