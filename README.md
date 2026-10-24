@@ -9,7 +9,9 @@ This is not a certified rescue system. It does not locate real people, drive har
 - The legacy simulation: a 12×12 grid, mission controls, and `/ws/telemetry`.
 - The sand-table operations view: a single-viewport Rev C console. Detail dialogs hold the longer diagnostics. Disconnected sensors stay blank.
 - A labeled replay fixture so the operations view can be demonstrated without sensors attached.
-- A Nebius Token Factory client that stays offline until `NEBIUS_API_KEY`, `NEBIUS_MODEL_ID`, and `RUBBLEECHO_AI_LIVE=1` are set.
+- A Nebius Token Factory client that stays offline until `AI_ENABLED=true`, `NEBIUS_API_KEY`, and `NEBIUS_MODEL_ID` are set in a local `.env`.
+- One camera on the live page. The other two camera labels are not part of this build.
+- `tools/mock_pi/mock_raspberry_pi.py` prints 24 synthetic envelopes with null measurements.
 
 ## Windows
 

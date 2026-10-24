@@ -3,7 +3,7 @@ import time
 
 from app.ai.prompts import build_messages
 from app.ai.validators import validate_reasoning
-from app.config.settings import AI_TIMEOUT_S, nebius_base_url, nebius_key, nebius_model
+from app.config.settings import AI_TIMEOUT_S, ai_enabled, nebius_base_url, nebius_key, nebius_model
 
 
 def ai_status() -> dict:
@@ -16,12 +16,9 @@ def ai_status() -> dict:
         "live_call": False,
         "base_url_host": "api.tokenfactory.nebius.com",
     }
-    if not key or not model:
+    if not ai_enabled() or not key or not model:
         status["status"] = "NOT_CONFIGURED"
-        status["message"] = (
-            "Set NEBIUS_API_KEY and NEBIUS_MODEL_ID. "
-            "Choose the model id from the Token Factory catalog, and only if it is an NVIDIA model."
-        )
+        status["message"] = "AI is not configured. No Token Factory call has been made."
         return status
     status["status"] = "CONFIGURED_UNVERIFIED"
     status["message"] = (
@@ -131,6 +128,57 @@ def reason_live(
         return {"ok": False, "kind": error or "invalid_json"}
     result["usage"] = usage
     return {"ok": True, "result": result}
+
+
+def healthcheck() -> dict:
+    """Catalog check. Returns before any network call when AI is not configured."""
+    status = ai_status()
+    if status["status"] == "NOT_CONFIGURED":
+        return {
+            "ok": False,
+            "status": "NOT_CONFIGURED",
+            "nvidia_online": False,
+            "live_call": False,
+            "model_id": status["model_id"],
+        }
+    model_id = nebius_model()
+    try:
+        from openai import OpenAI
+    except ImportError:
+        return {
+            "ok": False,
+            "status": "ERROR",
+            "kind": "openai_sdk_not_installed",
+            "nvidia_online": False,
+            "live_call": False,
+            "model_id": model_id,
+        }
+    started = time.perf_counter()
+    try:
+        client = OpenAI(base_url=nebius_base_url(), api_key=nebius_key(), timeout=AI_TIMEOUT_S)
+        listing = client.models.list()
+        model_ids = [item.id for item in getattr(listing, "data", [])]
+    except Exception as exc:
+        return {
+            "ok": False,
+            "status": "ERROR",
+            "kind": _classify_exception(exc),
+            "nvidia_online": False,
+            "live_call": False,
+            "model_id": model_id,
+            "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+        }
+    chosen = select_nvidia_model(model_ids, preferred=model_id)
+    ok = chosen["model_id"] == model_id
+    return {
+        "ok": ok,
+        "status": "ONLINE" if ok else "ERROR",
+        "kind": chosen["reason"],
+        "nvidia_online": ok,
+        "live_call": True,
+        "model_id": model_id,
+        "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+    }
 
 
 def _is_nvidia(model_id: str) -> bool:

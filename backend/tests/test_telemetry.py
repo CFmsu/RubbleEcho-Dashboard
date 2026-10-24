@@ -18,7 +18,8 @@ def test_operations_socket_uses_a_separate_contract() -> None:
 
 def test_cameras_are_not_marked_streaming() -> None:
     body = client.get("/api/cameras").json()
-    assert body["camera_count"] == 3
+    assert body["camera_count"] == 1
+    assert [camera["camera_id"] for camera in body["cameras"]] == ["camera_top"]
     assert body["streaming_camera_count"] == 0
     assert all(camera["state"] == "disconnected" for camera in body["cameras"])
     assert all(camera["panoramic_360"] is False for camera in body["cameras"])

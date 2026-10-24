@@ -5,8 +5,6 @@ from app.vision.aruco import aruco_backend_status
 DEVICE_CATALOG = [
     ("raspberry_pi_4", "edge_computer", "disconnected", "This process has not enumerated the Pi."),
     ("camera_top", "camera", "disconnected", "Camera not opened."),
-    ("camera_ground_coordinate", "camera", "disconnected", "Camera not opened."),
-    ("camera_ground_inspection", "camera", "disconnected", "Camera not opened."),
     ("arduino_uno", "motor_controller", "disconnected", "No verified motor link."),
     ("arduino_mega", "sensor_controller", "unsupported", "Board model is not verified."),
     ("esp32", "sensor_bridge", "disconnected", "Serial port is not configured."),

@@ -28,7 +28,7 @@ for (const viewport of viewports) {
     expect(fit.innerHeight).toBe(viewport.height)
     expect(fit.scrollHeight).toBeLessThanOrEqual(fit.innerHeight + 2)
     expect(fit.scrollWidth).toBeLessThanOrEqual(fit.innerWidth + 2)
-    for (const label of ['sand table', 'cameras', 'radar', 'ultrasonic', 'acoustic', 'vibration', 'rover', 'evidence', 'event timeline', 'rover controls']) {
+    for (const label of ['sand table', 'camera', 'radar', 'ultrasonic', 'acoustic', 'vibration', 'rover', 'evidence', 'event timeline', 'rover controls']) {
       const box = await page.getByRole('button', { name: `Expand ${label}`, exact: true }).boundingBox()
       expect(box, label).not.toBeNull()
       expect(box!.y).toBeGreaterThanOrEqual(0)
@@ -61,7 +61,7 @@ test('each live panel opens one dialog at a time', async ({ page }) => {
   await ready(page)
   const labels = [
     'sand table',
-    'cameras',
+    'camera',
     'radar',
     'ultrasonic',
     'acoustic',
@@ -96,7 +96,7 @@ const desktop = [
 
 const expandLabels = [
   'sand table',
-  'cameras',
+  'camera',
   'radar',
   'ultrasonic',
   'acoustic',
@@ -233,7 +233,7 @@ for (const viewport of zoomed) {
 test('resizing the browser keeps the open modal centered', async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 })
   await ready(page)
-  await page.getByRole('button', { name: 'Expand cameras', exact: true }).click()
+  await page.getByRole('button', { name: 'Expand camera', exact: true }).click()
   expectCenteredSquare(await panelBox(page))
   await page.setViewportSize({ width: 1280, height: 800 })
   expectCenteredSquare(await panelBox(page))

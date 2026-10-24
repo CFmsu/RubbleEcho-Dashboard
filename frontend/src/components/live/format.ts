@@ -67,7 +67,7 @@ export function deviceOnline(snapshot: OperationsSnapshot | null): { online: num
 
 export const DEVICE_LABELS: Record<string, string> = {
   raspberry_pi_4: 'Raspberry Pi 4',
-  camera_top: 'Camera 1 · Top Overview',
+  camera_top: 'Camera',
   camera_ground_coordinate: 'Camera 2 · Ground Coordinate',
   camera_ground_inspection: 'Camera 3 · Ground Inspection',
   arduino_uno: 'Arduino Uno',
@@ -89,7 +89,7 @@ export function pointDetail(point: HeatPoint | undefined): string {
 }
 
 export function cameraShort(cameraId: string): string {
-  if (cameraId === 'camera_top') return 'Top'
+  if (cameraId === 'camera_top') return 'Camera'
   if (cameraId === 'camera_ground_coordinate') return 'Coordinate'
   if (cameraId === 'camera_ground_inspection') return 'Inspection'
   return cameraId

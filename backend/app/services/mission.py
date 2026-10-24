@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from app.ai.nebius_client import ai_status, reason_live
 from app.config.geometry import known_point_ids, load_geometry
+from app.config.settings import ai_enabled
 from app.drivers.camera_pi import find_camera
 from app.persistence.store import load_trial, save_trial
 from app.services.export_trial import build_export
@@ -207,7 +208,7 @@ def request_reason() -> dict:
         return {"ok": False, "kind": "rate_limited", "reasoning": state.reasoning}
     state.last_ai_monotonic = now
     status = ai_status()
-    live_enabled = os.environ.get("RUBBLEECHO_AI_LIVE", "").strip() == "1"
+    live_enabled = ai_enabled()
     if status["status"] == "NOT_CONFIGURED" or not live_enabled:
         result = local_assessment(state.events, state.heatmap)
         if status["status"] != "NOT_CONFIGURED" and not live_enabled:

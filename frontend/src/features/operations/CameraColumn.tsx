@@ -7,7 +7,7 @@ export default function CameraColumn({ snapshot }: { snapshot: OperationsSnapsho
     <section className="ops-card">
       <h2 className="text-xl font-semibold">Cameras</h2>
       <p className="mt-1 text-xs text-slate-500">
-        Streaming {snapshot?.streaming_camera_count ?? 0}/{snapshot?.camera_count ?? 3}. A card stays disconnected until a frame is actually captured.
+        Streaming {snapshot?.streaming_camera_count ?? 0}/{snapshot?.camera_count ?? 1}. A card stays disconnected until a frame is actually captured.
       </p>
       <div className="mt-3 grid gap-3">
         {cameras.map((camera) => (

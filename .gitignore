@@ -17,3 +17,4 @@ backend/data/
 # Trial exports and local databases
 *.sqlite
 *.sqlite3
+data/trials/

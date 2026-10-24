@@ -10,6 +10,7 @@ def isolate_state(monkeypatch, tmp_path):
     monkeypatch.delenv("NEBIUS_MODEL_ID", raising=False)
     monkeypatch.delenv("OPERATOR_TOKEN", raising=False)
     monkeypatch.delenv("RUBBLEECHO_AI_LIVE", raising=False)
+    monkeypatch.delenv("AI_ENABLED", raising=False)
     monkeypatch.delenv("RUBBLEECHO_PROBE_CAMERAS", raising=False)
     get_state().reset()
     yield

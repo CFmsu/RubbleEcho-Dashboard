@@ -338,6 +338,10 @@ body,
   gap: 8px;
 }
 
+.camera-grid.is-single {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .camera-row {
   min-height: 0;
   display: grid;

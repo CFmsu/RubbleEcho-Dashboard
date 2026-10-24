@@ -19,7 +19,8 @@ def test_live_snapshot_stays_disconnected_without_devices() -> None:
     assert body["piezo"] is None
     assert body["pose"] is None
     assert body["streaming_camera_count"] == 0
-    assert body["camera_count"] == 3
+    assert body["camera_count"] == 1
+    assert body["cameras"][0]["camera_id"] == "camera_top"
     assert body["solenoid"]["state"] == "DISARMED"
     assert body["solenoid"]["output_energized"] is False
     assert body["ai"]["status"] == "NOT_CONFIGURED"

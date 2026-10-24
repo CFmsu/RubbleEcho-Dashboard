@@ -3,17 +3,7 @@ from app.config.settings import probe_cameras
 CAMERAS = [
     {
         "camera_id": "camera_top",
-        "name": "Camera 1 · Top Overview",
-        "panoramic_360": False,
-    },
-    {
-        "camera_id": "camera_ground_coordinate",
-        "name": "Camera 2 · Ground Coordinate",
-        "panoramic_360": False,
-    },
-    {
-        "camera_id": "camera_ground_inspection",
-        "name": "Camera 3 · Ground Inspection",
+        "name": "Camera",
         "panoramic_360": False,
     },
 ]

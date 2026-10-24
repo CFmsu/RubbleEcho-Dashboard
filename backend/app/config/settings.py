@@ -1,4 +1,15 @@
 import os
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # python-dotenv is optional for tests that only set the environment
+    load_dotenv = None
+
+if load_dotenv is not None:
+    _backend = Path(__file__).resolve().parents[2]
+    load_dotenv(_backend / ".env")
+    load_dotenv(_backend.parent / ".env")
 
 SYNC_TOLERANCE_MS = 50
 ULTRASONIC_STOP_CM = 20
@@ -31,6 +42,12 @@ def nebius_base_url() -> str:
     return os.environ.get(
         "NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/"
     ).strip()
+
+
+def ai_enabled() -> bool:
+    flag = os.environ.get("AI_ENABLED", "").strip().lower()
+    legacy = os.environ.get("RUBBLEECHO_AI_LIVE", "").strip() == "1"
+    return flag in {"1", "true", "yes"} or legacy
 
 
 def probe_cameras() -> bool:

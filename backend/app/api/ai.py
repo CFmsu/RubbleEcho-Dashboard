@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from app.ai.nebius_client import ai_status
+from app.ai.nebius_client import ai_status, healthcheck
 from app.api.auth import require_operator
 from app.services.mission import request_reason
 
@@ -12,6 +12,13 @@ async def status() -> dict:
     current = ai_status()
     current["nvidia_online"] = False
     return current
+
+
+@router.post("/api/ai/healthcheck")
+async def check(_: None = Depends(require_operator)) -> dict:
+    result = healthcheck()
+    result["nvidia_online"] = bool(result.get("nvidia_online"))
+    return result
 
 
 @router.post("/api/ai/reason")
