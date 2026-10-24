@@ -48,6 +48,44 @@ export async function clearOperationsView(): Promise<void> {
   if (!response.ok) throw new Error(await response.text())
 }
 
+export async function sendHold(): Promise<string> {
+  const response = await fetch('/api/mission/stop', { method: 'POST' })
+  if (!response.ok) throw new Error(await response.text())
+  return 'Hold sent. Knock request disarmed. Output stays locked.'
+}
+
+export async function armSolenoid(consent: boolean): Promise<string> {
+  const response = await fetch(`/api/operations/arm?consent=${consent ? 'true' : 'false'}`, {
+    method: 'POST',
+    headers: headers(),
+  })
+  const text = await response.text()
+  if (!response.ok) throw new Error(text || 'Arm request failed')
+  const payload = JSON.parse(text) as { accepted?: boolean; reason?: string }
+  if (!payload.accepted) throw new Error(payload.reason ?? 'Arm refused')
+  return 'Armed in software. The 12 V output is still locked.'
+}
+
+export async function requestKnock(): Promise<string> {
+  const response = await postJson('/api/operations/knock', {
+    width_ms: 40,
+    consent: true,
+    rover_moving: false,
+    now_ms: Date.now(),
+    arm_first: false,
+  })
+  const text = await response.text()
+  if (!response.ok) throw new Error(text || 'Knock request failed')
+  const payload = JSON.parse(text) as { accepted?: boolean; reason?: string }
+  if (!payload.accepted) throw new Error(payload.reason ?? 'Knock refused')
+  return 'Request logged. Output energized: no.'
+}
+
+export async function captureCamera(cameraId: string): Promise<void> {
+  const response = await postJson(`/api/camera/${cameraId}/capture`)
+  if (!response.ok) throw new Error(await response.text())
+}
+
 export async function downloadExport(trialId: string, format: 'zip' | 'json' | 'csv'): Promise<void> {
   const response = await fetch(`/api/trials/${trialId}/export?format=${format}`, {
     headers: headers(),

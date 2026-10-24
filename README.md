@@ -7,7 +7,7 @@ This is not a certified rescue system. It does not locate real people, drive har
 ## What you can run today
 
 - The legacy simulation: a 12×12 grid, mission controls, and `/ws/telemetry`.
-- The sand-table operations view: Rev C geometry, camera slots, radar card, sensor cards, and trial export.
+- The sand-table operations view: a single-viewport Rev C console. Detail dialogs hold the longer diagnostics. Disconnected sensors stay blank.
 - A labeled replay fixture so the operations view can be demonstrated without sensors attached.
 - A Nebius Token Factory client that stays offline until `NEBIUS_API_KEY`, `NEBIUS_MODEL_ID`, and `RUBBLEECHO_AI_LIVE=1` are set.
 
@@ -32,9 +32,9 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL, usually `http://localhost:5173/`. The API on port 8081 has no web page.
+Open the Vite URL, usually `http://localhost:5173/`. The API on port 8081 has no web page. The live console fits a 1440×900 desktop without page scrolling.
 
-Paste the same operator token into the dashboard. Choose **Load replay** to play the fixture. Choose **STOP** for the software hold. A hardware e-stop still has to cut power.
+Open Help if you need About, How it works, Architecture, or the legacy 12×12 simulation. Open Diagnostics from the device count to paste the operator token. Choose **Load replay** to play the fixture. **STOP** in the header is the software stop. A hardware e-stop still has to cut power. Start Scan stays disabled until the live health policy passes, and it does not command motors.
 
 Tests:
 
@@ -44,7 +44,10 @@ cd backend
 cd ..\frontend
 npm run build
 npm run lint
+npm run test:e2e
 ```
+
+`npm run test:e2e` starts Vite and checks the live console at 1920×1080, 1440×900, and 1366×768. The API should already be on port 8081. The first run downloads Chromium.
 
 ## Raspberry Pi 4
 

@@ -4,8 +4,8 @@ import MissionStatus from '../../components/MissionStatus'
 import RoverMap from '../../components/RoverMap'
 import { useTelemetry } from '../../hooks/useTelemetry'
 
-export default function LegacyPanel() {
-  const [open, setOpen] = useState(false)
+export default function LegacyPanel({ startOpen = false }: { startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen)
   return (
     <section className="ops-card">
       <div className="flex items-center justify-between gap-3">
