@@ -1,0 +1,123 @@
+{
+  "version": "1",
+  "drawing": {
+    "title": "RUBBLEECHO SAND-TABLE TEST SETUP",
+    "revision": "C",
+    "date": "2026-10-11",
+    "author": "A. Gautam",
+    "pdf": "Sand table setup (1).pdf",
+    "pdf_in_repository": false
+  },
+  "units": "cm",
+  "calibration_source": "engineering_inference_from_plan_pending_physical_survey",
+  "geometry_revision": "rev_c_nominal_2026-10-11",
+  "origin": {
+    "corner": "top_left_outside",
+    "x_cm": 0,
+    "y_cm": 0,
+    "x_axis": "right",
+    "y_axis": "down"
+  },
+  "outer_cm": {
+    "width": 105,
+    "height": 80
+  },
+  "inner_cm": {
+    "width": 101,
+    "height": 76,
+    "origin_x_cm": 2,
+    "origin_y_cm": 2,
+    "origin_note": "Derived as half the difference between the outer and inner footprints on each axis. Pending a physical survey."
+  },
+  "rim_depth_cm": 19,
+  "plywood_top_cm": 1.2,
+  "sand": {
+    "thick": {
+      "sand_depth_cm": 17.5,
+      "cover_above_lids_cm": 10
+    },
+    "thin": {
+      "sand_depth_cm": 12.5,
+      "cover_above_lids_cm": 5
+    }
+  },
+  "boxes": [
+    {
+      "id": "A",
+      "role": "planned_active_source_knock_chamber",
+      "plan_width_cm": 20,
+      "plan_height_cm": 15,
+      "vertical_depth_cm": 7.5,
+      "center_cm": { "x": 52.5, "y": 14.5 },
+      "orientation": "nominal_width_along_x_pending_survey"
+    },
+    {
+      "id": "B",
+      "role": "empty_control",
+      "plan_width_cm": 20,
+      "plan_height_cm": 15,
+      "vertical_depth_cm": 7.5,
+      "center_cm": { "x": 17.0, "y": 65.5 },
+      "orientation": "nominal_width_along_x_pending_survey"
+    },
+    {
+      "id": "C",
+      "role": "empty_control",
+      "plan_width_cm": 20,
+      "plan_height_cm": 15,
+      "vertical_depth_cm": 7.5,
+      "center_cm": { "x": 88.0, "y": 65.5 },
+      "orientation": "nominal_width_along_x_pending_survey"
+    }
+  ],
+  "measurement_points": [
+    { "id": "A_NEAR", "x_cm": 52.5, "y_cm": 14.5, "box_id": "A", "kind": "near" },
+    { "id": "A_FAR", "x_cm": 52.5, "y_cm": 39.5, "box_id": "A", "kind": "far" },
+    { "id": "B_NEAR", "x_cm": 17.0, "y_cm": 65.5, "box_id": "B", "kind": "near" },
+    { "id": "B_FAR", "x_cm": 17.0, "y_cm": 40.5, "box_id": "B", "kind": "far" },
+    { "id": "C_NEAR", "x_cm": 88.0, "y_cm": 65.5, "box_id": "C", "kind": "near" },
+    { "id": "C_FAR", "x_cm": 88.0, "y_cm": 40.5, "box_id": "C", "kind": "far" }
+  ],
+  "documented_nominal_separations_cm": {
+    "A_B": 62.1,
+    "A_C": 62.1,
+    "B_C": 71.0
+  },
+  "far_point_offset_toward_center_cm": 25,
+  "rover": {
+    "body_length_cm": null,
+    "body_width_cm": null,
+    "footprint_status": "NEEDS_HARDWARE_VERIFICATION",
+    "sensor_lever_arms_cm": null
+  },
+  "safety_defaults": {
+    "ultrasonic_stop_margin_cm": 20,
+    "ultrasonic_caution_margin_cm": 40,
+    "unmeasured_footprint_inset_cm": 10,
+    "max_commanded_move_cm": 20,
+    "max_commanded_turn_deg": 45,
+    "status": "NEEDS_HARDWARE_VERIFICATION",
+    "note": "Conservative software defaults until the rover footprint and stopping distance are measured."
+  },
+  "knock_protocol": {
+    "knocks_per_group": 3,
+    "onset_separation_ms": 250,
+    "pause_after_group_s": 2,
+    "max_pulse_width_ms": 40,
+    "note": "250 ms is the spacing between knock onsets. It is not a command to hold a 12 V solenoid on for 250 ms."
+  },
+  "validation_protocol": {
+    "knocks_per_point": 10,
+    "silence_s": 10,
+    "cover_settings": ["thick", "thin"],
+    "points": ["near", "far"],
+    "scratch_trials_separate": true
+  },
+  "coupling_note": "The plywood top is continuous and may carry vibration between boxes A, B, and C. Control-box false positives must be recorded. Do not treat a sparse score as a fine heatmap.",
+  "limitations": [
+    "Positions are engineering inferences from the plan, pending a physical survey.",
+    "The drawing PDF was not in the repository when this file was added.",
+    "Rover body size, camera extrinsics, and sensor lever arms are unmeasured.",
+    "Box plan orientation is a nominal assumption pending survey."
+  ]
+}

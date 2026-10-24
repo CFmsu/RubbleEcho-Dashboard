@@ -1,0 +1,76 @@
+# Example device map. Nothing here is a verified wiring assignment.
+# Copy locally if you need overrides. Do not invent pin numbers in git.
+
+status: NEEDS_HARDWARE_VERIFICATION
+
+edge:
+  computer: raspberry_pi_4
+  role: gateway_cameras_and_usb_audio
+  serial_port: ""
+
+motion:
+  controller: arduino_uno
+  driver: cytron_mdd10a
+  motor_count: unknown
+  encoder_pins: unknown
+  command_transport: framed_json_crc32
+  heartbeat_timeout_ms: 500
+
+sensors:
+  ultrasonic:
+    model: hc_sr04
+    quantity: obstacle_distance
+    unit: cm
+    host: arduino_or_esp32
+    level_shift_echo_if_3v3: required
+  radar:
+    model: seeed_mr60bha2
+    link: serial_from_microcontroller
+    bridge_protocol: "RADAR {json}"
+    seeed_library_methods:
+      - isHumanDetected
+      - getBreathRate
+      - getHeartRate
+      - getHeartBreathPhases
+      - getDistance
+    spatial_xy: only_if_firmware_sets_spatial_coordinates_supported
+  microphones:
+    model: seeed_respeaker_xvf3800
+    transport: usb
+    channel_count: enumerate_do_not_guess
+  piezo:
+    inventory_count: 1
+    assigned_role: stationary_surface_contact_receiver
+    reference_piezo_on_brick: not_in_inventory
+    adc_host: arduino_or_esp32
+    protection: series_resistor_bias_and_clamp_required_before_3v3_adc
+    unit: adc_counts
+  solenoid:
+    supply_v: 12
+    switch: irlz44n
+    default_state: DISARMED
+    gpio_energize: locked_until_hardware_verification
+  bluetooth:
+    likely_module: hc-05
+    verified: false
+    autonomous_channel: false
+
+cameras:
+  - id: camera_top
+    label: "Camera 1 · Top Overview"
+    panoramic_360: false
+  - id: camera_ground_coordinate
+    label: "Camera 2 · Ground Coordinate"
+  - id: camera_ground_inspection
+    label: "Camera 3 · Ground Inspection"
+
+hardware_prerequisites:
+  - solenoid_flyback_diode
+  - fuse_on_12v_branch
+  - emergency_stop_in_motor_and_solenoid_supply
+  - mosfet_gate_resistor
+  - mosfet_gate_pulldown
+  - piezo_voltage_clamp_and_bias
+  - ultrasonic_echo_level_shift_for_3v3_pins
+  - common_ground_plan
+  - verified_motor_current_within_mdd10a_ratings

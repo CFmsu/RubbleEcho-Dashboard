@@ -1,0 +1,5 @@
+{
+  "active_box": "A",
+  "disclosure": "evaluator_only",
+  "note": "Official plan assigns box A as the knock chamber. The replay loader does not read this file, and mission telemetry does not receive it."
+}

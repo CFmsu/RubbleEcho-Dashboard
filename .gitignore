@@ -7,3 +7,13 @@ backend/__pycache__/
 
 # Generated simulation state
 backend/data/last_mission.json
+backend/data/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Trial exports and local databases
+*.sqlite
+*.sqlite3

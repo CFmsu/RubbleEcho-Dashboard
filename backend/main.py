@@ -1,9 +1,12 @@
 import asyncio
 
 from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import simulation
+from app.api.router import api_router
+from app.services.mission import note_legacy_reset, note_legacy_start
 
 
 class MissionCommand(BaseModel):
@@ -11,6 +14,16 @@ class MissionCommand(BaseModel):
 
 
 app = FastAPI(title="RubbleEcho Simulation API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-Operator-Token"],
+)
+app.include_router(api_router)
 
 
 @app.get("/api/health")
@@ -28,6 +41,7 @@ async def start_mission(
     command: MissionCommand = Body(default=MissionCommand()),
 ) -> dict[str, object]:
     simulation.begin_mission(command.scenario)
+    note_legacy_start()
     return simulation.telemetry()
 
 
@@ -36,6 +50,7 @@ async def start_demo(
     command: MissionCommand = Body(default=MissionCommand()),
 ) -> dict[str, object]:
     simulation.begin_mission(command.scenario, demo=True)
+    note_legacy_start()
     return simulation.telemetry()
 
 
@@ -54,6 +69,7 @@ async def resume_mission() -> dict[str, object]:
 @app.post("/api/mission/reset")
 async def reset_mission() -> dict[str, object]:
     simulation.reset_mission()
+    note_legacy_reset()
     return simulation.telemetry()
 
 
