@@ -1,0 +1,10 @@
+# Optional hardware extras. Do not install opencv-python in the same environment.
+# These pins were not executed on a Raspberry Pi during this change.
+# Confirm Bookworm / Python compatibility before installing on the Pi.
+opencv-contrib-python-headless==4.11.0.86
+numpy==2.2.6
+pyserial==3.5
+sounddevice==0.5.2
+soundfile==0.13.1
+scipy==1.15.3
+Pillow==11.3.0

@@ -1,0 +1,3 @@
+# Optional. Install into the same virtual environment only when making a live
+# Nebius Token Factory call. The default test suite does not import this package.
+openai==1.109.1

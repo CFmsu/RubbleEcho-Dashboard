@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install API dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Test
+        working-directory: backend
+        run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          npm run lint
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject likely secrets
+        run: |
+          python - <<'PY'
+          import pathlib, re, sys
+          pattern = re.compile(r"sk-[A-Za-z0-9]{20,}")
+          skipped = {".git", "node_modules", ".venv", "dist"}
+          bad = []
+          for path in pathlib.Path(".").rglob("*"):
+              if not path.is_file() or any(part in skipped for part in path.parts):
+                  continue
+              if path.suffix.lower() in {".png", ".wav", ".zip", ".woff", ".woff2"}:
+                  continue
+              try:
+                  text = path.read_text(encoding="utf-8")
+              except Exception:
+                  continue
+              if pattern.search(text):
+                  bad.append(str(path))
+          if bad:
+              print("possible secrets:", *bad, sep="\n")
+              sys.exit(1)
+          PY

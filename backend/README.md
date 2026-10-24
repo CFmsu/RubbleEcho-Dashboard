@@ -1,5 +1,11 @@
 # RubbleEcho Backend
 
+The legacy simulation routes are unchanged. Operations routes, replay, export, and the Nebius client live in `app/`. See the repository README for setup.
+
+Set `OPERATOR_TOKEN` before loading a replay or exporting a trial. `POST /api/mission/estop` does not require that token. It only stops and disarms software state. It does not replace a hardware e-stop.
+
+## Legacy simulation
+
 This is an in-memory simulation; it does not connect to rover hardware.
 `main.py` exposes the API; `simulation.py` owns mission state and movement.
 

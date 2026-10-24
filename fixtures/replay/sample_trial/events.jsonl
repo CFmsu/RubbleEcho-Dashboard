@@ -1,0 +1,14 @@
+{"kind":"pose","at_ms":50,"point_id":"A_FAR","valid":true,"heading_deg":null}
+{"kind":"ultrasonic","at_ms":100,"distance_cm":55,"echo_timeout":false,"direction":"forward","quality":"fixture"}
+{"kind":"ultrasonic","at_ms":200,"distance_cm":null,"echo_timeout":true,"direction":"forward"}
+{"kind":"ultrasonic","at_ms":300,"distance_cm":55,"echo_timeout":false,"direction":"forward","quality":"fixture"}
+{"kind":"radar_line","at_ms":350,"line":"{"}
+{"kind":"radar_line","at_ms":450,"line":"{\"human_presence\":false,\"stability\":\"stationary\",\"firmware\":\"seeed_bridge_unverified\",\"valid\":true,\"stale\":false}"}
+{"kind":"audio_window","at_ms":500,"site_id":"A_FAR","sample_rate_hz":16000,"samples":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}
+{"kind":"piezo","at_ms":500,"site_id":"A_FAR","sample_rate_hz":1000,"contact_state":"stationary_contact_sensor","clipped":false,"samples":[20,22,18,21]}
+{"kind":"audio_window","at_ms":1000,"site_id":"A_FAR","sample_rate_hz":16000,"samples":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.95,-0.8,0.2,0,0,0,0,0,0,0,0,0,0,0,0,0]}
+{"kind":"piezo","at_ms":1020,"site_id":"A_FAR","sample_rate_hz":1000,"contact_state":"stationary_contact_sensor","clipped":false,"samples":[20,20,800,30,20]}
+{"kind":"solenoid_request","at_ms":1500,"width_ms":40,"consent":false,"rover_moving":false}
+{"kind":"pose","at_ms":1800,"point_id":"B_NEAR","valid":true,"heading_deg":null}
+{"kind":"audio_window","at_ms":2000,"site_id":"B_NEAR","sample_rate_hz":16000,"samples":[0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03,0.03]}
+{"kind":"piezo","at_ms":2000,"site_id":"B_NEAR","sample_rate_hz":1000,"contact_state":"stationary_contact_sensor","clipped":false,"samples":[15,18,30,16]}

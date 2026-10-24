@@ -1,130 +1,122 @@
-import { useState } from 'react'
-import RoverMap from './components/RoverMap'
-import MissionStatus from './components/MissionStatus'
-import MissionControls from './components/MissionControls'
-import HowItWorks from './components/HowItWorks'
+import { useEffect, useState } from 'react'
 import About from './components/About'
+import HowItWorks from './components/HowItWorks'
+import DiagnosticsPage from './features/diagnostics/DiagnosticsPage'
+import HeatmapPage from './features/heatmap/HeatmapPage'
+import LegacyPanel from './features/operations/LegacyPanel'
+import ReasoningPage from './features/reasoning/ReasoningPage'
+import SensorsPage from './features/sensors/SensorsPage'
+import { sendEstop } from './api/operations'
+import { useOperations } from './hooks/useOperations'
+import LiveOperations from './pages/LiveOperations'
 import { Architecture } from './pages/Architecture'
-import { useTelemetry } from './hooks/useTelemetry'
 
-type Page = 'live' | 'how' | 'about' | 'architecture'
+type Page = 'live' | 'sensors' | 'heatmap' | 'reasoning' | 'diagnostics' | 'how' | 'about' | 'architecture' | 'legacy'
 
-function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('live')
-  const { telemetry, connectionStatus } = useTelemetry()
+const NAV: Array<{ id: Page; label: string }> = [
+  { id: 'live', label: 'Live Operations' },
+  { id: 'sensors', label: 'Sensors' },
+  { id: 'heatmap', label: 'Heatmap & Trials' },
+  { id: 'reasoning', label: 'AI Reasoning' },
+  { id: 'diagnostics', label: 'Diagnostics' },
+]
 
-  const navButtonClass = (page: Page) =>
-    `rounded-lg px-4 py-2 ${
-      currentPage === page
-        ? 'bg-blue-600 text-white'
-        : 'hover:bg-slate-700'
-    }`
+export default function App() {
+  const [page, setPage] = useState<Page>('live')
+  const [helpOpen, setHelpOpen] = useState(false)
+  const { snapshot, connection } = useOperations()
+  const connected = connection === 'connected'
+  const live = page === 'live'
+
+  const openHelp = (next: Page) => {
+    setHelpOpen(false)
+    setPage(next)
+  }
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="bg-slate-900 text-white">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-5">
-          <h1 className="text-2xl font-bold">RubbleEcho</h1>
-
-          <nav aria-label="Main navigation" className="flex flex-wrap gap-3">
-            <button
-              onClick={() => setCurrentPage('live')}
-              className={navButtonClass('live')}
-            >
-              Live Run
+    <div className={live ? 'app-shell is-live' : 'app-shell is-page'} data-testid={live ? 'app-shell' : undefined}>
+      <header className="app-header">
+        <div className="brand">
+          <h1>RubbleEcho</h1>
+          <span>Sand table Rev C</span>
+        </div>
+        <nav className="primary-nav" aria-label="Main navigation">
+          {NAV.map((item) => (
+            <button key={item.id} type="button" aria-current={page === item.id ? 'page' : undefined} onClick={() => setPage(item.id)}>
+              {item.label}
             </button>
-
-            <button
-              onClick={() => setCurrentPage('how')}
-              className={navButtonClass('how')}
-            >
-              How It Works
-            </button>
-
-            <button
-              onClick={() => setCurrentPage('about')}
-              className={navButtonClass('about')}
-            >
-              About
-            </button>
-
-            <button
-              onClick={() => setCurrentPage('architecture')}
-              className={navButtonClass('architecture')}
-            >
-              Architecture
-            </button>
-          </nav>
+          ))}
+        </nav>
+        <div className="header-tools">
+          <Health snapshotLive={Boolean(snapshot?.system_live)} safety={snapshot?.safety_state} connected={connected} />
+          <span className="mode-badge">{snapshot?.badge ?? 'DISCONNECTED'}</span>
+          <Clock iso={snapshot?.updated_at_utc} />
+          <details className="help-menu" open={helpOpen} onToggle={(event) => setHelpOpen(event.currentTarget.open)}>
+            <summary>Help</summary>
+            <div className="help-pop">
+              <button type="button" onClick={() => openHelp('about')}>About</button>
+              <button type="button" onClick={() => openHelp('how')}>How it works</button>
+              <button type="button" onClick={() => openHelp('architecture')}>Architecture</button>
+              <button type="button" onClick={() => openHelp('legacy')}>Legacy simulation</button>
+            </div>
+          </details>
+          <HeaderStop connected={connected} />
         </div>
       </header>
-
-      <main className="mx-auto max-w-6xl px-6 py-10">
-        {currentPage === 'live' && (
-          <section>
-            <h2 className="mb-4 text-3xl font-bold">Live Run</h2>
-
-            <p className="mb-6 text-slate-600">
-              Watch the RubbleEcho rover simulation.
-            </p>
-
-            <div className="mb-6">
-              <span
-                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 font-medium ${
-                  connectionStatus === 'connected'
-                    ? 'bg-green-100 text-green-700'
-                    : connectionStatus === 'connecting'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-red-100 text-red-700'
-                }`}
-              >
-                <span
-                  className={`h-3 w-3 rounded-full ${
-                    connectionStatus === 'connected'
-                      ? 'bg-green-500'
-                      : connectionStatus === 'connecting'
-                        ? 'bg-yellow-500'
-                        : 'bg-red-500'
-                  }`}
-                />
-
-                {connectionStatus === 'connected'
-                  ? 'Telemetry Connected'
-                  : connectionStatus === 'connecting'
-                    ? 'Connecting to Telemetry...'
-                    : 'Telemetry Disconnected'}
-              </span>
-            </div>
-
-            <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-              <RoverMap
-                robot={telemetry.robot}
-                probes={telemetry.probes}
-              />
-
-              <MissionStatus
-                confidence={telemetry.mission.confidence}
-                phase={telemetry.mission.phase}
-                events={telemetry.events}
-              />
-            </div>
-
-            <div className="mt-6">
-              <MissionControls
-                missionStatus={telemetry.mission.status}
-                telemetryConnected={connectionStatus === 'connected'}
-              />
-            </div>
-          </section>
-        )}
-
-        {currentPage === 'how' && <HowItWorks />}
-
-        {currentPage === 'about' && <About />}
-
-        {currentPage === 'architecture' && <Architecture />}
-      </main>
+      {live ? <LiveOperations snapshot={snapshot} connected={connected} /> : (
+        <main className="page-scroll">
+          {page === 'sensors' ? <SensorsPage snapshot={snapshot} /> : null}
+          {page === 'heatmap' ? <HeatmapPage snapshot={snapshot} /> : null}
+          {page === 'reasoning' ? <ReasoningPage snapshot={snapshot} /> : null}
+          {page === 'diagnostics' ? <DiagnosticsPage snapshot={snapshot} /> : null}
+          {page === 'how' ? <HowItWorks /> : null}
+          {page === 'about' ? <About /> : null}
+          {page === 'architecture' ? <Architecture /> : null}
+          {page === 'legacy' ? <LegacyPanel startOpen /> : null}
+        </main>
+      )}
     </div>
   )
 }
 
-export default App
+function Health({
+  snapshotLive,
+  safety,
+  connected,
+}: {
+  snapshotLive: boolean
+  safety: string | undefined
+  connected: boolean
+}) {
+  const estop = safety === 'ESTOP'
+  const kind = !connected ? 'hold' : estop ? 'estop' : snapshotLive ? 'ok' : 'hold'
+  const label = !connected ? 'API down' : estop ? 'ESTOP' : snapshotLive ? 'Healthy' : 'Hold'
+  return <span className="health" data-kind={kind}>{label}</span>
+}
+
+function Clock({ iso }: { iso: string | undefined }) {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+  const label = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return <time className="clock" dateTime={iso ?? now.toISOString()} title={iso ? `Snapshot ${iso}` : 'No snapshot'}>{label}</time>
+}
+
+function HeaderStop({ connected }: { connected: boolean }) {
+  const [failed, setFailed] = useState(false)
+  return (
+    <button
+      type="button"
+      className="stop-btn"
+      disabled={!connected}
+      title={failed ? 'Stop request failed' : connected ? 'Software stop. A hardware e-stop still cuts power.' : 'Safety controller unreachable'}
+      onClick={() => {
+        sendEstop().then(() => setFailed(false)).catch(() => setFailed(true))
+      }}
+    >
+      STOP
+    </button>
+  )
+}
