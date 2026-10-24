@@ -1,0 +1,110 @@
+:root {
+  --navy: #0e1b32;
+  --workspace: #f4f7fb;
+  --line: #e1e7ef;
+  --action: #2463eb;
+  --ok: #0f766e;
+  --warn: #b45309;
+  --stop: #b91c1c;
+  --card: #ffffff;
+  color: var(--navy);
+  background: var(--workspace);
+  font-family: Inter, "Segoe UI", sans-serif;
+  font-size: 14px;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+}
+
+.ops-shell {
+  max-width: 1900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.ops-grid {
+  display: grid;
+  grid-template-columns: minmax(480px, 1.42fr) minmax(340px, 1fr) minmax(330px, 0.95fr);
+  gap: 16px;
+}
+
+.ops-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.radar-stage {
+  position: relative;
+  height: 190px;
+  overflow: hidden;
+  border-radius: 12px 12px 0 0;
+  background: #020617;
+}
+
+.radar-disc,
+.radar-ring {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+
+.radar-disc {
+  width: 340px;
+  height: 340px;
+  background: radial-gradient(circle at 50% 100%, #14532d, #020617 68%);
+  border: 1px solid #166534;
+}
+
+.radar-ring {
+  border: 1px solid rgba(74, 222, 128, 0.35);
+}
+
+.radar-pivot {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 0;
+  height: 0;
+}
+
+.radar-beam {
+  position: absolute;
+  bottom: 0;
+  left: -1px;
+  width: 2px;
+  height: 160px;
+  background: #4ade80;
+  transform-origin: bottom center;
+  animation: radar-sweep 4s linear infinite;
+}
+
+.radar-stage.is-paused .radar-beam {
+  animation-play-state: paused;
+  opacity: 0.3;
+}
+
+@keyframes radar-sweep {
+  from { transform: rotate(-90deg); }
+  to { transform: rotate(90deg); }
+}
+
+@media (max-width: 1439px) {
+  .ops-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .ops-map {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1023px) {
+  .ops-grid {
+    grid-template-columns: 1fr;
+  }
+}
