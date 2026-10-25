@@ -1,3 +1,89 @@
+def gcc_phat_delays(mics: object, sample_rate: float = 16000.0, max_lag: int = 3) -> dict:
+    """Sub-sample GCC-PHAT across 4 mics.
+
+    At 16 kHz one sample is 62.5 µs. A ~5 cm array limits the direct path to
+    about 2.3 samples, so the lag search is clamped to ±max_lag samples.
+    Positive delay means that channel's waveform arrives later than channel 0.
+    """
+    import numpy as np
+
+    data = np.asarray(mics, dtype=np.float64)
+    if data.ndim != 2 or data.shape[1] < 2 or data.shape[0] < 32:
+        return {
+            "valid": False,
+            "reason": "need_a_multichannel_onset_window",
+            "delays_samples": [],
+            "delays_us": [],
+            "summary": "no onset window",
+        }
+    delays = [0.0]
+    for channel in range(1, data.shape[1]):
+        delays.append(_gcc_phat_lag(data[:, channel], data[:, 0], max_lag))
+    closure = _closure_error(data, delays, max_lag)
+    edge = any(abs(value) >= max_lag - 0.05 and channel > 0 for channel, value in enumerate(delays))
+    valid = closure <= 0.75 and not edge
+    microseconds = [value * 1e6 / sample_rate for value in delays]
+    rendered = ", ".join(
+        f"ch{index} {value:+.0f} us" for index, value in enumerate(microseconds)
+    )
+    summary = f"{rendered}; closure {closure:.2f} samples"
+    if not valid:
+        summary = f"unresolved ({summary})"
+    return {
+        "valid": valid,
+        "reason": None if valid else "lag_outside_array_or_pairs_disagree",
+        "reference_channel": 0,
+        "max_lag_samples": max_lag,
+        "delays_samples": [round(value, 3) for value in delays],
+        "delays_us": [round(value, 1) for value in microseconds],
+        "closure_error_samples": round(closure, 3),
+        "summary": summary,
+        "bearing": None,
+        "limit": "array delay only; rubble multipath and a missing mic survey block a bearing",
+    }
+
+
+def _gcc_phat_lag(sig: object, ref: object, max_lag: int) -> float:
+    import numpy as np
+
+    left = np.asarray(sig, dtype=np.float64)
+    right = np.asarray(ref, dtype=np.float64)
+    nfft = 1 << int(left.size + right.size - 1).bit_length()
+    cross = np.fft.rfft(left, n=nfft) * np.conj(np.fft.rfft(right, n=nfft))
+    cross /= np.abs(cross) + 1e-12
+    correlation = np.fft.irfft(cross, n=nfft)
+    lags = np.arange(-max_lag, max_lag + 1)
+    values = np.array([correlation[int(lag) % nfft] for lag in lags])
+    peak = int(np.argmax(values))
+    delta = 0.0
+    if 0 < peak < values.size - 1:
+        y0, y1, y2 = float(values[peak - 1]), float(values[peak]), float(values[peak + 1])
+        denom = y0 - 2.0 * y1 + y2
+        if abs(denom) > 1e-12:
+            delta = 0.5 * (y0 - y2) / denom
+            delta = max(-0.5, min(0.5, delta))
+    return float(lags[peak] + delta)
+
+
+def _closure_error(data: object, delays_vs_ref: list[float], max_lag: int) -> float:
+    """Each pair's GCC lag should match the difference of the reference delays."""
+    import numpy as np
+
+    errors = []
+    channels = data.shape[1]
+    for first in range(channels):
+        for second in range(first + 1, channels):
+            predicted = delays_vs_ref[first] - delays_vs_ref[second]
+            if abs(predicted) > max_lag + 0.5:
+                errors.append(abs(predicted))
+                continue
+            measured = _gcc_phat_lag(data[:, first], data[:, second], max_lag)
+            errors.append(abs(measured - predicted))
+    if not errors:
+        return 0.0
+    return float(np.max(errors))
+
+
 def window_score(
     acoustic_class: str | None,
     piezo_peak: float | None,
@@ -9,7 +95,7 @@ def window_score(
     """
     parts: list[float] = []
     if acoustic_class is not None:
-        if acoustic_class == "knock":
+        if acoustic_class in {"knock", "periodic_tapping"}:
             parts.append(1.0)
         elif acoustic_class == "scratch/scrape":
             parts.append(0.55)

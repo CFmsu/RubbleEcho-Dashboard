@@ -24,10 +24,15 @@ def test_silence_and_impulse_stay_finite_and_untrained() -> None:
                 assert math.isfinite(value)
 
 
-def test_train_command_does_not_claim_a_model(capsys) -> None:
+def test_train_command_fits_synthetic_rules_only(capsys) -> None:
     assert main(["train"]) == 0
     body = json.loads(capsys.readouterr().out)
-    assert body["training_status"] == "NOT_TRAINED"
+    assert body["training_status"] == "SYNTHETIC_DUMMY"
+    assert body["hardware_calibrated"] is False
+    assert body["survivor_claim"] is False
+    assert body["piezo_used"] is False
+    assert body["train_accuracy"] == 1.0
+    assert body["held_out_accuracy"] == 1.0
 
 
 def test_record_command_does_not_invent_audio() -> None:

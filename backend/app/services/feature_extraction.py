@@ -155,3 +155,132 @@ def _event(
         ),
         "unit_note": "dBFS is digital full scale, not dB SPL",
     }
+
+
+# Live path. 16 kHz, 256-point Hann window, hop 64 samples = 4.0 ms.
+# Bin width is 16000/256 = 62.5 Hz. Scratch energy uses bins from 1 kHz to 4 kHz.
+RATE_HZ = 16000
+WINDOW_SAMPLES = 256
+HOP_SAMPLES = 64
+HOP_MS = 1000.0 * HOP_SAMPLES / RATE_HZ
+BANDPASS_HZ = (50.0, 4000.0)
+SCRATCH_BAND_HZ = (1000.0, 4000.0)
+
+
+class StreamingBandpass:
+    """50–4000 Hz Butterworth applied per channel with state carried across blocks.
+
+    Order 2 keeps the impulse response short enough that a tap under 50 ms is not
+    smeared by the filter. `zi` is updated on every block. Restarting from zeros
+    at each block boundary rings and looks like a false onset.
+    """
+
+    def __init__(self, channels: int = 4, sample_rate: float = RATE_HZ, order: int = 2) -> None:
+        import numpy as np
+        from scipy.signal import butter
+
+        nyquist = sample_rate / 2.0
+        low, high = BANDPASS_HZ
+        self.sos = butter(order, [low / nyquist, high / nyquist], btype="bandpass", output="sos")
+        self.channels = channels
+        self._np = np
+        self._zi = np.zeros((channels, self.sos.shape[0], 2), dtype=np.float64)
+        self._primed = False
+
+    def process(self, block: object) -> object:
+        import numpy as np
+        from scipy.signal import sosfilt, sosfilt_zi
+
+        data = np.asarray(block, dtype=np.float64)
+        if data.ndim != 2 or data.shape[1] != self.channels or data.shape[0] == 0:
+            raise ValueError("bandpass expects shape (frames, 4)")
+        if not self._primed:
+            seed = sosfilt_zi(self.sos)
+            for channel in range(self.channels):
+                self._zi[channel] = seed * float(data[0, channel])
+            self._primed = True
+        out = np.empty_like(data)
+        for channel in range(self.channels):
+            out[:, channel], self._zi[channel] = sosfilt(self.sos, data[:, channel], zi=self._zi[channel])
+        return out
+
+
+def spectral_flatness(magnitudes: object) -> float:
+    """Geometric mean / arithmetic mean of bin magnitudes. Near 0 is tonal. Near 1 is noise-like."""
+    import numpy as np
+
+    mag = np.asarray(magnitudes, dtype=np.float64)
+    mag = mag[np.isfinite(mag)]
+    if mag.size < 4:
+        return 0.0
+    geometric = float(np.exp(np.mean(np.log(mag + 1e-12))))
+    arithmetic = float(np.mean(mag))
+    if arithmetic <= 1e-12:
+        return 0.0
+    return geometric / arithmetic
+
+
+class HopAnalyzer:
+    """Fine hop features. The 256-sample window slides by 64 samples."""
+
+    def __init__(self, channels: int = 4, sample_rate: float = RATE_HZ) -> None:
+        import numpy as np
+
+        self.channels = channels
+        self.sample_rate = sample_rate
+        self.window = WINDOW_SAMPLES
+        self.hop = HOP_SAMPLES
+        self._buf = np.zeros((0, channels), dtype=np.float64)
+        self.hop_index = 0
+        self._window_fn = np.hanning(self.window)
+        self._freqs = np.fft.rfftfreq(self.window, d=1.0 / sample_rate)
+        self._scratch_bins = (self._freqs >= SCRATCH_BAND_HZ[0]) & (self._freqs <= SCRATCH_BAND_HZ[1])
+        self._prev_mag: object | None = None
+
+    def push(self, block: object) -> list[dict]:
+        import numpy as np
+
+        data = np.asarray(block, dtype=np.float64)
+        if data.ndim != 2 or data.shape[1] != self.channels:
+            raise ValueError("hop analyzer expects shape (frames, 4)")
+        self._buf = data if self._buf.size == 0 else np.vstack((self._buf, data))
+        features: list[dict] = []
+        while self._buf.shape[0] >= self.window:
+            features.append(self._frame(self._buf[: self.window]))
+            self._buf = self._buf[self.hop :]
+            self.hop_index += 1
+        return features
+
+    def _frame(self, frame: object) -> dict:
+        import numpy as np
+
+        samples = np.asarray(frame, dtype=np.float64)
+        weighted = samples * self._window_fn[:, None]
+        spectrum = np.fft.rfft(weighted, axis=0)
+        magnitude = np.abs(spectrum)
+        rms = np.sqrt(np.mean(samples * samples, axis=0))
+        peak = np.max(np.abs(samples), axis=0)
+        crest = peak / np.maximum(rms, 1e-12)
+        loudest = int(np.argmax(rms))
+        loud_mag = magnitude[:, loudest]
+        scratch = loud_mag[self._scratch_bins]
+        usable = loud_mag[1:]
+        scratch_energy = float(np.sum(scratch * scratch))
+        total_energy = float(np.sum(usable * usable)) + 1e-18
+        if self._prev_mag is None:
+            flux = 0.0
+        else:
+            delta = loud_mag - self._prev_mag
+            flux = float(np.sqrt(np.mean(delta * delta)))
+        self._prev_mag = loud_mag.copy()
+        return {
+            "hop": self.hop_index,
+            "rms": float(rms[loudest]),
+            "peak": float(peak[loudest]),
+            "crest": float(crest[loudest]),
+            "channel": loudest,
+            "band_fraction": scratch_energy / total_energy,
+            "flatness": spectral_flatness(scratch),
+            "spectral_flux": flux,
+            "frame": samples.copy(),
+        }
