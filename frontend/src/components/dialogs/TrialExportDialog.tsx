@@ -31,11 +31,11 @@ export default function TrialExportDialog({
           </label>
         ))}
       </fieldset>
-      <label className="check-line" title="No frames are stored for this trial.">
-        <input type="checkbox" disabled /> Include images
+      <label className="check-line">
+        <input type="checkbox" checked={snapshot?.mode === 'simulation'} readOnly disabled={snapshot?.mode !== 'simulation'} /> Include images
       </label>
-      <label className="check-line" title="Raw waveforms are not in the current export.">
-        <input type="checkbox" disabled /> Include raw waveforms
+      <label className="check-line">
+        <input type="checkbox" checked={snapshot?.mode === 'simulation'} readOnly disabled={snapshot?.mode !== 'simulation'} /> Include audio clips
       </label>
       <button
         type="button"
@@ -54,7 +54,7 @@ export default function TrialExportDialog({
         Download
       </button>
       {result ? <p role="status">{result}</p> : null}
-      <p className="quiet-line">ZIP contains manifest.json, events.jsonl, measurements.csv, inference.jsonl, and README.txt. Secrets are not included. Empty channels stay empty.</p>
+      <p className="quiet-line">ZIP contains manifest.json, events.jsonl, measurements.csv, inference.jsonl, and README.txt. A simulation trial also includes the camera PNG and audio WAV for each visited point. Secrets are not included.</p>
     </DetailDialog>
   )
 }

@@ -9,7 +9,7 @@ from app.config.geometry import load_geometry
 from app.version import APP_VERSION
 
 
-def build_export(trial: dict, git_sha: str) -> bytes:
+def build_export(trial: dict, git_sha: str, attachments: dict[str, bytes] | None = None) -> bytes:
     events = trial.get("events", [])
     samples = trial.get("samples", [])
     reasoning = trial.get("reasoning")
@@ -37,6 +37,10 @@ def build_export(trial: dict, git_sha: str) -> bytes:
         "inference.jsonl": inference_blob,
         "README.txt": readme,
     }
+    for name, blob in (attachments or {}).items():
+        if name.startswith("/") or ".." in name or "\\" in name:
+            raise ValueError("unsafe archive path")
+        files[name] = blob
     manifest = {
         "trial_id": trial["trial_id"],
         "app_version": APP_VERSION,

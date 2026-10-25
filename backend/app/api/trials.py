@@ -1,7 +1,7 @@
 import io
 import zipfile
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
@@ -83,8 +83,14 @@ async def overlay(trial_id: str, _: None = Depends(require_operator)) -> dict:
 async def export(
     trial_id: str,
     format: str = "zip",
-    _: None = Depends(require_operator),
+    x_operator_token: str | None = Header(default=None),
 ) -> Response:
+    state = get_state()
+    trial = state.trial if state.trial and state.trial_id == trial_id else load_trial(trial_id)
+    if trial is None:
+        raise HTTPException(status_code=404, detail={"error": "trial not found"})
+    if trial.get("mode") != "simulation":
+        require_operator(x_operator_token)
     payload = export_trial(trial_id)
     if payload is None:
         raise HTTPException(status_code=404, detail={"error": "trial not found"})

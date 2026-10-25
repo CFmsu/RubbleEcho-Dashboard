@@ -73,7 +73,12 @@ def start_trial(mode: str, fixture: str | None) -> dict:
 
 
 def estop(reason: str = "operator_estop") -> dict:
+    from app.services.sim_run import cancel_run
+
+    cancel_run()
     state = get_state()
+    state.run_active = False
+    state.scan_stage = "IDLE"
     state.phase = "ESTOP"
     state.safety = "ESTOP"
     state.solenoid.disarm()
@@ -224,6 +229,7 @@ def request_reason() -> dict:
         _evidence(state),
         {event["event_id"] for event in state.events},
         known_point_ids(),
+        state.search_plan,
     )
     return apply_model_result(live)
 
@@ -295,7 +301,7 @@ def export_trial(trial_id: str) -> bytes | None:
     if state.trial_id == trial_id:
         _sync_trial(state)
         trial = state.trial or trial
-    return build_export(trial, _git_sha())
+    return build_export(trial, _git_sha(), _simulation_files(trial))
 
 
 def capture_camera(camera_id: str) -> dict:
@@ -343,7 +349,7 @@ def _evidence(state) -> list[dict]:
                 "mode": event.get("mode"),
             }
         )
-    return rows[-20:]
+    return rows[-40:]
 
 
 def _trial_shell(trial_id: str, mode: str) -> dict:
@@ -378,6 +384,24 @@ def _sync_trial(state) -> None:
     state.trial["reasoning"] = state.reasoning
     state.trial["mode"] = state.mode
     save_trial(state.trial)
+
+
+def _simulation_files(trial: dict) -> dict[str, bytes]:
+    from app.persistence.store import data_dir
+
+    trial_id = trial.get("trial_id")
+    if trial.get("mode") != "simulation" or not trial_id:
+        return {}
+    root = (data_dir() / "sim_media" / str(trial_id)).resolve()
+    files: dict[str, bytes] = {}
+    for name in trial.get("media_files") or []:
+        if not isinstance(name, str) or name.startswith("/") or ".." in name or "\\" in name:
+            continue
+        path = (root / name).resolve()
+        if root not in path.parents or not path.is_file():
+            continue
+        files[name] = path.read_bytes()
+    return files
 
 
 def _git_sha() -> str:

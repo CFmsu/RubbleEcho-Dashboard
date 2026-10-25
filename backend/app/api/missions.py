@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.api.auth import require_operator
 from app.services.mission import arm_solenoid, estop, hold, knock_request, snapshot, submit_command
+from app.services.sim_run import halt_run, media_file, start_run
 from app.state import get_state
 
 router = APIRouter()
@@ -38,6 +40,32 @@ async def mission_state() -> dict:
     }
 
 
+@router.post("/api/mission/run")
+async def mission_run() -> dict:
+    return start_run()
+
+
+@router.post("/api/mission/halt")
+async def mission_halt() -> dict:
+    return halt_run()
+
+
+@router.get("/api/simulation/camera.png")
+async def simulation_camera() -> Response:
+    path = media_file("camera")
+    if path is None:
+        raise HTTPException(status_code=404, detail={"error": "no simulation frame"})
+    return Response(content=path.read_bytes(), media_type="image/png")
+
+
+@router.get("/api/simulation/audio.wav")
+async def simulation_audio() -> Response:
+    path = media_file("audio")
+    if path is None:
+        raise HTTPException(status_code=404, detail={"error": "no simulation audio"})
+    return Response(content=path.read_bytes(), media_type="audio/wav")
+
+
 @router.post("/api/mission/estop")
 async def mission_estop() -> dict:
     return estop("operator_estop")
@@ -50,6 +78,9 @@ async def mission_stop() -> dict:
 
 @router.post("/api/operations/clear")
 async def clear_view(_: None = Depends(require_operator)) -> dict:
+    from app.services.radar_link import stop_radar
+
+    stop_radar()
     preserved = get_state().trial_id
     get_state().reset()
     return {
