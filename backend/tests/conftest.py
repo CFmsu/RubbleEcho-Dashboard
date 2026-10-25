@@ -1,5 +1,6 @@
 import pytest
 
+from app.services.radar_link import stop_radar
 from app.state import get_state
 
 
@@ -12,8 +13,10 @@ def isolate_state(monkeypatch, tmp_path):
     monkeypatch.delenv("RUBBLEECHO_AI_LIVE", raising=False)
     monkeypatch.delenv("AI_ENABLED", raising=False)
     monkeypatch.delenv("RUBBLEECHO_PROBE_CAMERAS", raising=False)
+    stop_radar()
     get_state().reset()
     yield
+    stop_radar()
     get_state().reset()
 
 
