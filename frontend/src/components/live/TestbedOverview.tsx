@@ -2,7 +2,9 @@ import { useState } from 'react'
 import Panel from '../layout/Panel'
 import type { OpenDialog } from '../../types/dialog'
 import type { OperationsSnapshot, TableGeometry } from '../../types/operations'
+import PointIndex from './PointIndex'
 import SandTableFigure from './SandTableFigure'
+import { roverFix } from './navigation'
 import { panelState, sampledCount } from './format'
 
 export default function TestbedOverview({
@@ -20,7 +22,13 @@ export default function TestbedOverview({
 }) {
   const [selectedId, setSelectedId] = useState('')
   const sampled = sampledCount(snapshot)
-  const pose = snapshot?.pose?.valid ? 'rover pose valid' : 'rover pose unavailable'
+  const plan = snapshot?.search_plan
+  const rover = geometry && !plan ? roverFix(geometry, snapshot) : null
+  const pose = plan
+    ? `virtual line · ${plan.path.length} cells left · look ${plan.look}`
+    : rover
+      ? rover.moving ? `rover moving toward ${rover.toId}` : `rover at ${rover.fromId}`
+      : 'rover pose unavailable'
   const cover = geometry ? `${geometry.sand.thick.cover_above_lids_cm} cm nominal cover` : 'cover not loaded'
   const summary = `${cover} · ${sampled}/6 sampled points · ${pose}`
 
@@ -48,6 +56,10 @@ export default function TestbedOverview({
             }}
           />
           <p className="map-summary" title={summary}>{summary}</p>
+          <PointIndex geometry={geometry} snapshot={snapshot} selectedId={selectedId} onSelect={(pointId) => {
+            setSelectedId(pointId)
+            onOpen({ kind: 'map', pointId })
+          }} />
         </div>
       ) : null}
     </Panel>

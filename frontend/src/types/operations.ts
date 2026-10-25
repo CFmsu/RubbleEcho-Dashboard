@@ -24,6 +24,7 @@ export interface CameraCard {
   height: number | null
   last_frame_utc: string | null
   error: string | null
+  image_url?: string | null
 }
 
 export interface RadarObservation {
@@ -31,6 +32,10 @@ export interface RadarObservation {
   distance_m: number | null
   breath_rate_bpm: number | null
   heart_rate_bpm: number | null
+  num_targets?: number | null
+  illuminance_lx?: number | null
+  breath_phase?: number | null
+  heart_phase?: number | null
   total_phase: number | null
   stability: string | null
   stale: boolean
@@ -41,6 +46,8 @@ export interface RadarObservation {
   notes: string[]
   captured_at_utc: string | null
   source_mode: SourceMode
+  display_bearing_deg?: number | null
+  case_name?: string | null
 }
 
 export interface HeatPoint {
@@ -102,10 +109,14 @@ export interface OperationsSnapshot {
   system_live: boolean
   mission_phase: string
   safety_state: string
+  run_active?: boolean
+  scan_stage?: string
+  run_elapsed_s?: number
   nvidia_online: boolean
   ai: {
     status: string
     model_id: string | null
+    vision_model_id?: string | null
     message: string
     nvidia_online: boolean
   }
@@ -129,6 +140,9 @@ export interface OperationsSnapshot {
     origin_unknown: boolean
     site_id?: string | null
     source_mode: SourceMode
+    channel_note?: string
+    tdoa_summary?: string
+    duration_ms?: number
   } | null
   impulse: {
     class: string
@@ -168,6 +182,22 @@ export interface OperationsSnapshot {
   heatmap_points: HeatPoint[]
   events: OpsEvent[]
   reasoning: Reasoning | null
+  search_plan?: SearchPlan | null
+  scene_note?: { scene: string; obstacles: string[]; open_area: string } | null
+  ai_usage?: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+    estimated_usd: number
+    calls: Array<{
+      stage: string
+      model_id: string
+      prompt_tokens: number
+      completion_tokens: number
+      total_tokens: number
+      estimated_usd: number | null
+    }>
+  }
   geometry_revision: string
   limitations: string[]
   updated_at_utc: string
@@ -185,6 +215,17 @@ export interface OperationsSnapshot {
   trial_id: string | null
   legacy_simulation_active: boolean
   malformed_radar_lines?: number
+}
+
+export interface SearchPlan {
+  source: string
+  execute_hardware: boolean
+  look: string
+  path: string[]
+  note?: string
+  camera_frame: string
+  boundary: Array<{ x1_cm: number; y1_cm: number; x2_cm: number; y2_cm: number }>
+  cells: Array<{ point_id: string; x_cm: number; y_cm: number; state: string }>
 }
 
 export interface TableGeometry {

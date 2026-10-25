@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import DetailDialog, { FactGrid } from './DetailDialog'
+import PointIndex from '../live/PointIndex'
 import SandTableFigure from '../live/SandTableFigure'
+import { roverFix } from '../live/navigation'
 import { readOperatorToken } from '../../api/operations'
 import type { OperationsSnapshot, TableGeometry } from '../../types/operations'
 import { panelState, pointDetail, sampledCount } from '../live/format'
@@ -56,13 +58,17 @@ export default function MapDetailDialog({
           ['Calibration', snapshot?.calibration.reason ?? 'no calibration'],
         ]}
       />
-      <h3 className="dialog-subhead">Measurement points</h3>
-      <ul className="plain-list">
-        {(geometry?.measurement_points ?? []).map((point) => {
-          const heat = snapshot?.heatmap_points.find((item) => item.point_id === point.id)
-          return <li key={point.id}>{point.id}: {point.x_cm}, {point.y_cm} cm · {heat ? pointDetail(heat) : 'no samples'}</li>
-        })}
-      </ul>
+      <h3 className="dialog-subhead">Heatmap index</h3>
+      <p className="quiet-line">
+        {snapshot?.search_plan
+          ? `The amber line is the virtual boundary. The teal line is the remaining grid order. Look ${snapshot.search_plan.look}. Motors are not commanded.`
+          : geometry && roverFix(geometry, snapshot)
+            ? `Simulation marker heading toward ${roverFix(geometry, snapshot)?.toId}.`
+            : 'Plan grid draws the virtual boundary. A simulation run can still show its own marker.'}
+      </p>
+      {geometry ? (
+        <PointIndex geometry={geometry} snapshot={snapshot} selectedId={selectedId} onSelect={setSelectedId} />
+      ) : null}
       <p className="quiet-line">Scores are an uncalibrated observation heuristic. Unmeasured area stays neutral. Interpolation is not drawn on this map.</p>
     </DetailDialog>
   )
