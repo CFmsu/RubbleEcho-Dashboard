@@ -89,8 +89,8 @@ function Health({
   connected: boolean
 }) {
   const estop = safety === 'ESTOP'
-  const kind = !connected ? 'hold' : estop ? 'estop' : snapshotLive ? 'ok' : 'hold'
-  const label = !connected ? 'API down' : estop ? 'ESTOP' : snapshotLive ? 'Healthy' : 'Hold'
+  const kind = !connected ? 'hold' : estop ? 'estop' : snapshotLive ? 'ok' : 'idle'
+  const label = !connected ? 'API down' : estop ? 'ESTOP' : snapshotLive ? 'Healthy' : 'Idle'
   return <span className="health" data-kind={kind}>{label}</span>
 }
 

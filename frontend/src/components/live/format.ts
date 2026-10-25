@@ -60,7 +60,7 @@ export function evidenceHeadline(snapshot: OperationsSnapshot | null): string {
 export function deviceOnline(snapshot: OperationsSnapshot | null): { online: number; total: number } {
   const devices = snapshot?.devices ?? []
   return {
-    online: devices.filter((device) => device.state === 'connected').length,
+    online: devices.filter((device) => device.state === 'connected' || device.state === 'simulated').length,
     total: devices.length,
   }
 }

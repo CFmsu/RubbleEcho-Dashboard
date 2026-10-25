@@ -12,17 +12,21 @@ export default function ReasoningSummary({
 }) {
   const reasoning = snapshot?.reasoning
   const nvidia = nvidiaLive(snapshot)
+  const local = reasoning?.provider === 'deterministic_safety_fallback'
+  const configured = Boolean(snapshot?.ai?.model_id)
   const ai = nvidia
     ? `NVIDIA ${reasoning?.model_id ?? ''}`.trim()
-    : reasoning?.provider === 'deterministic_safety_fallback'
-      ? 'Rule-based, offline'
-      : 'AI: not configured'
+    : local && configured
+      ? 'Local readout'
+      : local
+        ? 'Rule-based, offline'
+        : 'AI: not configured'
   const recommendation = reasoning?.recommendation.detail ?? reasoning?.recommendation.type ?? 'No recommendation.'
   const chips = [
     ['Acoustic', snapshot?.acoustic ? panelState(snapshot.acoustic.source_mode) : 'No sample'],
     ['Piezo', snapshot?.piezo ? panelState(snapshot.piezo.source_mode) : 'No sample'],
     ['Radar', snapshot?.radar ? panelState(snapshot.radar.source_mode, snapshot.radar.stale) : 'No sample'],
-    ['Camera', (snapshot?.streaming_camera_count ?? 0) > 0 ? 'LIVE' : 'No sample'],
+    ['Camera', (snapshot?.streaming_camera_count ?? 0) > 0 ? 'LIVE' : snapshot?.cameras?.some((camera) => camera.image_url) ? 'SIMULATION' : 'No sample'],
     ['Ultrasonic', snapshot?.ultrasonic ? panelState(snapshot.ultrasonic.source_mode) : 'No sample'],
   ] as const
 
@@ -43,6 +47,14 @@ export default function ReasoningSummary({
         </p>
         <p className="quiet-line">{recommendation}</p>
         <p className="quiet-line">Uncalibrated · {ai}</p>
+        {snapshot?.ai_usage && snapshot.ai_usage.total_tokens > 0 ? (
+          <p className="quiet-line">
+            {snapshot.ai_usage.estimated_usd < 0.01
+              ? `$${snapshot.ai_usage.estimated_usd.toFixed(6)}`
+              : `$${snapshot.ai_usage.estimated_usd.toFixed(4)}`}{' '}
+            catalog estimate · {snapshot.ai_usage.total_tokens} tokens. Not an invoice.
+          </p>
+        ) : null}
       </div>
     </Panel>
   )

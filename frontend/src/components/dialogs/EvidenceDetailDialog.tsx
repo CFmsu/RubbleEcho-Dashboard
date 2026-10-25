@@ -30,15 +30,27 @@ export default function EvidenceDetailDialog({
       <p className="quiet-line">{reasoning?.summary ?? 'No advisory has been requested.'}</p>
       <p className="quiet-line">Uncalibrated. A numeric score from the local readout is not a probability and is not an NVIDIA result.</p>
       <h3 className="dialog-subhead">Hypotheses</h3>
-      <ul className="plain-list">
-        {(reasoning?.hypotheses ?? []).map((item) => (
-          <li key={item.label}>
-            {item.label} · {item.score === null ? 'not scored' : item.score} · {item.evidence_event_ids.join(', ') || 'no event ids'}
-            <span className="quiet-line">{item.limitations.join(' ')}</span>
-          </li>
-        ))}
-        {(reasoning?.hypotheses.length ?? 0) === 0 ? <li>No hypothesis list yet.</li> : null}
-      </ul>
+      <table className="dialog-table">
+        <thead>
+          <tr>
+            <th>Hypothesis</th>
+            <th>Score</th>
+            <th>Evidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(reasoning?.hypotheses ?? []).map((item) => (
+            <tr key={item.label}>
+              <td>{item.label}<span className="quiet-line">{item.limitations.join(' ')}</span></td>
+              <td>{item.score === null ? 'not scored' : item.score}</td>
+              <td>{item.evidence_event_ids.join(', ') || 'no event ids'}</td>
+            </tr>
+          ))}
+          {(reasoning?.hypotheses.length ?? 0) === 0 ? (
+            <tr><td colSpan={3}>No hypothesis list yet.</td></tr>
+          ) : null}
+        </tbody>
+      </table>
       <h3 className="dialog-subhead">Recommendation</h3>
       <p>{reasoning ? `${reasoning.recommendation.type} ${reasoning.recommendation.point_id ?? ''} — approval required. Status: RECOMMENDATION.` : 'No recommendation.'}</p>
       <p className="quiet-line">This text is not a validated command, not sent, and not acknowledged. It cannot energize motors or the solenoid.</p>

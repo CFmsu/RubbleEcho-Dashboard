@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { ExpandIcon } from '../layout/Panel'
 import type { OpenDialog } from '../../types/dialog'
 import type { DialogRequest } from '../../types/dialog'
 import type { OperationsSnapshot } from '../../types/operations'
 import { panelState } from './format'
+import { heartbeatPath, noteRange } from './rangeTrace'
 
 export default function SensorStrip({
   snapshot,
@@ -16,6 +17,11 @@ export default function SensorStrip({
   const acoustic = snapshot?.acoustic
   const piezo = snapshot?.piezo
   const envelope = snapshot?.acoustic_envelope_dbfs ?? []
+  useEffect(() => {
+    noteRange(ultrasonic?.distance_cm)
+    const id = window.setInterval(() => noteRange(ultrasonic?.distance_cm), 450)
+    return () => window.clearInterval(id)
+  }, [ultrasonic?.distance_cm])
 
   return (
     <>
@@ -28,6 +34,7 @@ export default function SensorStrip({
         expandLabel="ultrasonic"
         request={{ kind: 'ultrasonic' }}
         onOpen={onOpen}
+        extra={<RangeSpark active={ultrasonic?.distance_cm != null} />}
       />
       <Strip
         title="Acoustic"
@@ -53,7 +60,7 @@ export default function SensorStrip({
       <Strip
         title="Rover"
         state={snapshot?.pose?.valid ? panelState(snapshot.mode) : 'DISCONNECTED'}
-        value={snapshot?.safety_state ?? '—'}
+        value={snapshot?.run_active ? 'RUN' : snapshot?.mission_phase && snapshot.mission_phase !== 'IDLE' ? snapshot.mission_phase : 'IDLE'}
         unit=""
         detail={`Encoders — · ${snapshot?.solenoid.state ?? 'DISARMED'}`}
         expandLabel="rover"
@@ -99,6 +106,26 @@ function Strip({
         <ExpandIcon />
       </button>
     </div>
+  )
+}
+
+function RangeSpark({ active }: { active: boolean }) {
+  const pathRef = useRef<SVGPathElement>(null)
+  useEffect(() => {
+    if (!active || !pathRef.current) return
+    let frame = 0
+    const started = performance.now()
+    const loop = (now: number) => {
+      pathRef.current?.setAttribute('d', heartbeatPath((now - started) / 1000, 72, 28))
+      frame = requestAnimationFrame(loop)
+    }
+    frame = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(frame)
+  }, [active])
+  return (
+    <svg viewBox="0 0 72 28" className="pulse" role="img" aria-label="Live obstacle-distance pulse">
+      <path ref={pathRef} d={active ? heartbeatPath(0, 72, 28) : 'M0 16 L72 16'} fill="none" stroke={active ? '#16845d' : '#94a3b8'} strokeWidth="1.6" />
+    </svg>
   )
 }
 

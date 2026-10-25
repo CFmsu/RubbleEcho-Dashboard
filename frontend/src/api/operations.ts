@@ -33,9 +33,43 @@ export async function loadReplay(): Promise<string> {
   return payload.trial_id
 }
 
+async function searchMessage(path: string): Promise<string> {
+  const response = await fetch(path, { method: 'POST' })
+  const payload = await response.json()
+  if (!response.ok || payload.ok === false) throw new Error(payload.message ?? 'Search step failed')
+  return payload.message as string
+}
+
+export function planGrid(): Promise<string> {
+  return searchMessage('/api/search/plan')
+}
+
+export function guardObstacle(): Promise<string> {
+  return searchMessage('/api/search/obstacle')
+}
+
+export function readSearchSignal(): Promise<string> {
+  return searchMessage('/api/search/signal')
+}
+
 export async function requestAdvisory(): Promise<void> {
   const response = await postJson('/api/ai/reason')
   if (!response.ok) throw new Error(await response.text())
+}
+
+export async function startSimulation(): Promise<string> {
+  const response = await fetch('/api/mission/run', { method: 'POST' })
+  const text = await response.text()
+  if (!response.ok) throw new Error(text || 'Run failed')
+  return 'Simulation running. Sample image, audio, and sensor cases update every 5 seconds.'
+}
+
+export async function haltSimulation(): Promise<string> {
+  const response = await fetch('/api/mission/halt', { method: 'POST' })
+  const text = await response.text()
+  if (!response.ok) throw new Error(text || 'Stop failed')
+  const payload = JSON.parse(text) as { message?: string }
+  return payload.message ?? 'Stopped.'
 }
 
 export async function sendEstop(): Promise<void> {
@@ -98,6 +132,47 @@ export async function downloadExport(trialId: string, format: 'zip' | 'json' | '
   link.download = `${trialId}.${format}`
   link.click()
   URL.revokeObjectURL(url)
+}
+
+export async function listenMicrophone(): Promise<string> {
+  const response = await fetch('/api/audio/listen', { method: 'POST' })
+  const payload = await response.json()
+  if (!response.ok || payload.ok === false) {
+    const detail = payload.detail ?? payload
+    throw new Error(detail.message ?? 'Microphone did not open')
+  }
+  return payload.message as string
+}
+
+export async function startDummyRadar(): Promise<string> {
+  const response = await fetch('/api/radar/dummy', { method: 'POST' })
+  const payload = await response.json()
+  if (!response.ok || payload.ok === false) throw new Error(payload.message ?? 'Dummy radar did not start')
+  return payload.message as string
+}
+
+export async function listenRadar(): Promise<string> {
+  const response = await fetch('/api/radar/listen', { method: 'POST' })
+  const payload = await response.json()
+  if (!response.ok || payload.ok === false) {
+    const detail = payload.detail ?? payload
+    throw new Error(detail.message ?? 'Radar did not open')
+  }
+  return payload.message as string
+}
+
+export async function stopRadar(): Promise<string> {
+  const response = await fetch('/api/radar/stop', { method: 'POST' })
+  const payload = await response.json()
+  if (!response.ok) throw new Error(payload.message ?? 'Radar stop failed')
+  return payload.message as string
+}
+
+export async function stopMicrophone(): Promise<string> {
+  const response = await fetch('/api/audio/stop', { method: 'POST' })
+  const payload = await response.json()
+  if (!response.ok) throw new Error(payload.message ?? 'Microphone stop failed')
+  return payload.message as string
 }
 
 export async function fetchGeometry(): Promise<unknown> {

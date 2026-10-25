@@ -27,7 +27,11 @@ export default function CameraDetailDialog({
     <DetailDialog open={open} onClose={onClose} title={camera?.name ?? cameraId} state={panelState(camera?.source_mode)}>
       <div className="preview preview-detail">
         <span className="preview-frame">
-          <span className="preview-copy">{camera?.state === 'connected' ? 'No stored frame' : 'No stream'}</span>
+          {camera?.image_url ? (
+            <img src={camera.image_url} alt="Simulation camera sample" />
+          ) : (
+            <span className="preview-copy">{camera?.state === 'connected' ? 'No stored frame' : 'No stream'}</span>
+          )}
         </span>
       </div>
       <FactGrid
@@ -56,7 +60,7 @@ export default function CameraDetailDialog({
       <button
         type="button"
         className="btn primary"
-        disabled={camera?.state !== 'connected'}
+        disabled={camera?.state !== 'connected' && !camera?.image_url}
         onClick={() => {
           void run(async () => {
             await captureCamera(cameraId)

@@ -20,16 +20,28 @@ export default function EventSummary({
       onExpand={() => onOpen({ kind: 'events' })}
     >
       <div className="event-stack">
-        {events.length === 0 ? <p className="quiet-line">No events yet</p> : null}
-        <ol className="event-list">
-          {events.map((event) => (
-            <li key={event.event_id} className="event-row">
-              <span>{clockLabel(event.captured_at_utc)}</span>
-              <span>{event.device ?? event.sensor ?? '—'}</span>
-              <span title={event.summary}>{event.summary ?? event.event_id}</span>
-            </li>
-          ))}
-        </ol>
+        {events.length === 0 ? <p className="quiet-line">No events yet</p> : (
+          <div className="index-wrap">
+            <table className="index-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Device</th>
+                  <th>Event</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((event) => (
+                  <tr key={event.event_id}>
+                    <td>{clockLabel(event.captured_at_utc)}</td>
+                    <td>{event.device ?? event.sensor ?? '—'}</td>
+                    <td title={event.summary}>{event.summary ?? event.event_id}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         <button type="button" className="text-btn" onClick={() => onOpen({ kind: 'events' })}>See all</button>
       </div>
     </Panel>

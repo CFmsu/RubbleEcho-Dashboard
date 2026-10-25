@@ -2,10 +2,20 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   captureCamera,
   clearOperationsView,
+  haltSimulation,
+  guardObstacle,
+  listenMicrophone,
+  listenRadar,
   loadReplay,
+  planGrid,
   readOperatorToken,
+  readSearchSignal,
+  stopMicrophone,
   requestKnock,
   sendHold,
+  startDummyRadar,
+  startSimulation,
+  stopRadar,
 } from '../api/operations'
 import AudioDetailDialog from '../components/dialogs/AudioDetailDialog'
 import CameraDetailDialog from '../components/dialogs/CameraDetailDialog'
@@ -65,7 +75,10 @@ export default function LiveOperations({
       <MissionToolbar
         snapshot={snapshot}
         hasToken={hasToken}
+        status={actionError || notice}
         onOpen={setActive}
+        onRun={() => void run(() => startSimulation())}
+        onStop={() => void run(() => haltSimulation())}
         onCapture={() => {
           const cameras = (snapshot?.cameras ?? []).filter((camera) => camera.state === 'connected')
           void run(async () => {
@@ -98,6 +111,20 @@ export default function LiveOperations({
               const trialId = await loadReplay()
               return `Replay ${trialId} loaded. It is not live hardware.`
             })}
+            onListen={() => void run(async () => {
+              const listening = snapshot?.devices?.some((device) => device.device_id === 'xvf3800' && device.source_mode === 'live')
+              return listening ? stopMicrophone() : listenMicrophone()
+            })}
+            onRadarDummy={() => void run(async () => (
+              snapshot?.radar?.case_name === 'dummy_mr60bha2' ? stopRadar() : startDummyRadar()
+            ))}
+            onRadarLive={() => void run(async () => {
+              const live = snapshot?.devices?.some((device) => device.device_id === 'mr60bha2' && device.source_mode === 'live')
+              return live ? stopRadar() : listenRadar()
+            })}
+            onPlan={() => void run(() => planGrid())}
+            onObstacle={() => void run(() => guardObstacle())}
+            onSignal={() => void run(() => readSearchSignal())}
           />
         </div>
       </div>

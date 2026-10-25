@@ -24,14 +24,17 @@ export default function CameraCluster({
   onOpen: OpenDialog
 }) {
   const camera = snapshot?.cameras?.find((item) => item.camera_id === 'camera_top') ?? snapshot?.cameras?.[0] ?? FALLBACK
-  const online = camera.state === 'connected' && camera.source_mode === 'live' ? 1 : 0
+  const live = camera.state === 'connected' && camera.source_mode === 'live'
+  const sample = Boolean(camera.image_url)
+  const title = live ? 'Camera · 1/1 online' : sample ? 'Camera · simulation sample' : 'Camera · 0/1 online'
+  const state = live ? 'LIVE' : sample ? 'SIMULATION' : 'DISCONNECTED'
 
   return (
     <Panel
       className="camera-panel"
       testId="camera-panel"
-      title={`Camera · ${online}/1 online`}
-      state={online > 0 ? 'LIVE' : 'DISCONNECTED'}
+      title={title}
+      state={state}
       expandLabel="camera"
       onExpand={() => onOpen({ kind: 'camera', cameraId: camera.camera_id })}
     >
@@ -42,7 +45,11 @@ export default function CameraCluster({
           onClick={() => onOpen({ kind: 'camera', cameraId: camera.camera_id })}
         >
           <span className="preview-frame">
-            <span className="preview-copy">{online ? 'Waiting for a stored frame' : 'No stream'}</span>
+            {camera.image_url ? (
+              <img src={camera.image_url} alt="Simulation camera sample" />
+            ) : (
+              <span className="preview-copy">{live ? 'Waiting for a stored frame' : 'No stream'}</span>
+            )}
           </span>
           <span className="preview-label">
             Camera
