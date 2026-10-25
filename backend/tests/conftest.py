@@ -9,6 +9,7 @@ def isolate_state(monkeypatch, tmp_path):
     monkeypatch.setenv("RUBBLEECHO_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("NEBIUS_API_KEY", raising=False)
     monkeypatch.delenv("NEBIUS_MODEL_ID", raising=False)
+    monkeypatch.delenv("NEBIUS_VISION_MODEL_ID", raising=False)
     monkeypatch.delenv("OPERATOR_TOKEN", raising=False)
     monkeypatch.delenv("RUBBLEECHO_AI_LIVE", raising=False)
     monkeypatch.delenv("AI_ENABLED", raising=False)

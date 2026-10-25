@@ -1,4 +1,5 @@
-from app.ai.nebius_client import ai_status, interpret_model_text, select_nvidia_model
+from app.ai.cost import estimate_usd
+from app.ai.nebius_client import ai_status, interpret_model_text, interpret_scene, select_nvidia_model
 from app.ai.prompts import build_messages
 from app.services.mission import apply_model_result
 from app.state import get_state
@@ -89,6 +90,26 @@ def test_validator_rejects_auto_execute_and_unknown_ids() -> None:
     )
     assert result is None
     assert error == "approval_required"
+
+
+def test_scene_note_rejects_a_motor_field() -> None:
+    scene, error = interpret_scene(
+        '{"scene":"Sand fills the frame.","obstacles":[],"open_area":"The middle is clear.","motor_speed":1}'
+    )
+    assert scene is None
+    assert error == "forbidden_key:motor_speed"
+    accepted, accepted_error = interpret_scene(
+        '{"scene":"Sand fills the frame.","obstacles":["a dark block at the left"],"open_area":"The middle is clear."}'
+    )
+    assert accepted_error is None
+    assert accepted is not None
+    assert accepted["obstacles"] == ["a dark block at the left"]
+
+
+def test_catalog_estimate_uses_the_published_nano_rate() -> None:
+    assert estimate_usd("nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B", 1_000_000, 0) == 0.06
+    assert estimate_usd("nvidia/Nemotron-3.5-Super-VL", 0, 1_000_000) == 0.9
+    assert estimate_usd("some-other-model", 100, 100) is None
 
 
 def test_prompt_has_no_hidden_source() -> None:

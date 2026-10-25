@@ -50,6 +50,12 @@ class AppState:
         self.mode = "unavailable"
         self.phase = "IDLE"
         self.safety = "HOLD"
+        self.run_active = False
+        self.scan_stage = "IDLE"
+        self.run_elapsed_s = 0.0
+        self.run_started = 0.0
+        self.media_camera: str | None = None
+        self.media_audio: str | None = None
         self.legacy_active = False
         self.operator_link = False
         self.trial_id: str | None = None
@@ -71,6 +77,15 @@ class AppState:
         self.samples: list[dict] = []
         self.heatmap: list[dict] = []
         self.reasoning = None
+        self.search_plan = None
+        self.scene_note = None
+        self.ai_usage = {
+            "calls": [],
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "estimated_usd": 0.0,
+        }
         self.seen_command_ids: set[str] = set()
         self.command_log: list[dict] = []
         self.sequence = 0

@@ -38,6 +38,10 @@ def nebius_model() -> str:
     return os.environ.get("NEBIUS_MODEL_ID", "").strip()
 
 
+def nebius_vision_model() -> str:
+    return os.environ.get("NEBIUS_VISION_MODEL_ID", "").strip()
+
+
 def nebius_base_url() -> str:
     return os.environ.get(
         "NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/"
