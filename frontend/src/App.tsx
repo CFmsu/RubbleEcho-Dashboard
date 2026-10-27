@@ -6,7 +6,7 @@ import HeatmapPage from './features/heatmap/HeatmapPage'
 import LegacyPanel from './features/operations/LegacyPanel'
 import ReasoningPage from './features/reasoning/ReasoningPage'
 import SensorsPage from './features/sensors/SensorsPage'
-import { sendEstop } from './api/operations'
+import { sendEstop, startSimulation } from './api/operations'
 import { useOperations } from './hooks/useOperations'
 import LiveOperations from './pages/LiveOperations'
 import { Architecture } from './pages/Architecture'
@@ -60,6 +60,7 @@ export default function App() {
               <button type="button" onClick={() => openHelp('legacy')}>Legacy simulation</button>
             </div>
           </details>
+          <HeaderStart connected={connected} running={Boolean(snapshot?.run_active)} />
           <HeaderStop connected={connected} />
         </div>
       </header>
@@ -102,6 +103,23 @@ function Clock({ iso }: { iso: string | undefined }) {
   }, [])
   const label = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   return <time className="clock" dateTime={iso ?? now.toISOString()} title={iso ? `Snapshot ${iso}` : 'No snapshot'}>{label}</time>
+}
+
+function HeaderStart({ connected, running }: { connected: boolean; running: boolean }) {
+  const [failed, setFailed] = useState(false)
+  return (
+    <button
+      type="button"
+      className="start-btn"
+      disabled={!connected || running}
+      title={running ? 'The walk is going. Stop ends it.' : 'Start the walk across the sand table.'}
+      onClick={() => {
+        startSimulation().then(() => setFailed(false)).catch(() => setFailed(true))
+      }}
+    >
+      {failed ? 'Start failed' : running ? 'Walking' : 'Start'}
+    </button>
+  )
 }
 
 function HeaderStop({ connected }: { connected: boolean }) {

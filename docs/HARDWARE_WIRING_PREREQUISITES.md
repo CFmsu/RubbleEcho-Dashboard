@@ -22,4 +22,4 @@ Nothing in this list was verified on a bench during the software change. Do not 
 
 The one piezo disk is assigned in software as a stationary surface contact receiver. It is not treated as the buried reference sensor.
 
-Software pulse limit is 40 ms. The 250 ms figure is the onset spacing, not a hold time. The solenoid output flag stays false in this build.
+The Arduino sketch holds pin A0 high for 200 ms, then low for 200 ms, three times. START repeats that group every 5 s. STOP drives the pin low. The dashboard does not read the pin back, so the output flag stays false until a person confirms the coil moved.

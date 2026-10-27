@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { OperationsSnapshot } from '../../types/operations'
+import EchoDiagram from '../live/EchoDiagram'
 import { panelState } from '../live/format'
-import { noteRange, rangePath, readRange, type RangeSample } from '../live/rangeTrace'
+import { noteRange, readRange, type RangeSample } from '../live/rangeTrace'
 import DetailDialog, { FactGrid } from './DetailDialog'
 
 export default function UltrasonicDetailDialog({
@@ -26,7 +27,6 @@ export default function UltrasonicDetailDialog({
     return () => window.clearInterval(id)
   }, [open, range?.distance_cm])
 
-  const d = rangePath(values, 640, 180)
   const latest = values[values.length - 1]
   const peak = values.length ? Math.max(...values.map((item) => item.cm)) : null
   const floor = values.length ? Math.min(...values.map((item) => item.cm)) : null
@@ -35,15 +35,8 @@ export default function UltrasonicDetailDialog({
   return (
     <DetailDialog open={open} onClose={onClose} title="HC-SR04 obstacle distance" state={panelState(range?.source_mode)}>
       <p className="measure">{range?.distance_cm == null ? '—' : range.distance_cm}<small> cm</small></p>
-      <svg viewBox="0 0 640 180" className="pulse-large" role="img" aria-label="Ultrasonic obstacle-distance graph">
-        {[36, 72, 108, 144].map((y) => (
-          <line key={y} x1="36" y1={y} x2="628" y2={y} stroke="#1e293b" strokeWidth="1" />
-        ))}
-        <text x="8" y="16" fill="#94a3b8" fontSize="11">far</text>
-        <text x="8" y="168" fill="#94a3b8" fontSize="11">near</text>
-        <path d={d || 'M0 90 L640 90'} fill="none" stroke="#4ade80" strokeWidth="2.5" />
-      </svg>
-      <p className="quiet-line">This trace is obstacle range in front of the sensor. The small pulse on the strip is a monitor display of that range. It is not a heartbeat and not a vital sign through rubble.</p>
+      <EchoDiagram distanceCm={range?.distance_cm ?? null} echoTimeout={Boolean(range?.echo_timeout)} />
+      <p className="quiet-line">The violet point sits at the measured range and slides when the distance changes. Inside 20 cm the rover blocks the next grid cell, turns, and listens.</p>
       <table className="dialog-table">
         <thead>
           <tr>

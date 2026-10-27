@@ -1,0 +1,43 @@
+from app.config.geometry import search_lattice
+from app.services.rover_track import apply_rover_line
+from app.services.sim_run import _pose
+from app.state import get_state
+
+
+def test_reported_cell_is_the_measured_center() -> None:
+    state = get_state()
+    state.reset()
+    route = search_lattice()
+    state.scan_route = route
+    assert apply_rover_line('ACK {"device":"arduino_uno","cell":"r1c2","phase":"hold"}')
+    cell = next(item for item in route if item["id"] == "r1c2")
+    assert state.pose["source"] == "arduino_uno"
+    assert state.pose["cell_id"] == "r1c2"
+    assert state.pose["x_cm"] == cell["x_cm"]
+    assert state.pose["y_cm"] == cell["y_cm"]
+    assert state.rover_leg is None
+    assert state.pose_trail[-1]["cell_id"] == "r1c2"
+
+
+def test_moving_report_draws_the_leg_between_cells() -> None:
+    state = get_state()
+    state.reset()
+    route = search_lattice()
+    state.scan_route = route
+    assert apply_rover_line(
+        'ACK {"device":"arduino_uno","status":"moving","from":"r1c3","to":"r2c3","ms":1800}'
+    )
+    origin = next(item for item in route if item["id"] == "r1c3")
+    dest = next(item for item in route if item["id"] == "r2c3")
+    assert state.rover_leg["from_x_cm"] == origin["x_cm"]
+    assert state.rover_leg["to_y_cm"] == dest["y_cm"]
+    assert state.rover_leg["duration_ms"] == 1800
+
+
+def test_scripted_pose_leaves_a_live_fix_in_place() -> None:
+    state = get_state()
+    state.reset()
+    state.motor_tracking = True
+    state.pose = {"source": "arduino_uno", "x_cm": 18.8, "cell_id": "r1c1"}
+    _pose(state, {"x_cm": 86.2, "y_cm": 65.3}, "2026-01-01T00:00:00Z", 180.0)
+    assert state.pose["cell_id"] == "r1c1"

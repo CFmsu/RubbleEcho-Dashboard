@@ -14,6 +14,7 @@ import {
   requestKnock,
   sendHold,
   startDummyRadar,
+  startPiMimic,
   startSimulation,
   stopRadar,
 } from '../api/operations'
@@ -31,12 +32,10 @@ import UltrasonicDetailDialog from '../components/dialogs/UltrasonicDetailDialog
 import VibrationDetailDialog from '../components/dialogs/VibrationDetailDialog'
 import MissionToolbar from '../components/layout/MissionToolbar'
 import CameraCluster from '../components/live/CameraCluster'
-import EventSummary from '../components/live/EventSummary'
 import { APP_VERSION, footerMode, snapshotAge } from '../components/live/format'
 import OperatorControls from '../components/live/OperatorControls'
 import RadarOverview from '../components/live/RadarOverview'
-import ReasoningSummary from '../components/live/ReasoningSummary'
-import SensorStrip from '../components/live/SensorStrip'
+import SignalWall from '../components/live/SignalWall'
 import TestbedOverview from '../components/live/TestbedOverview'
 import { useGeometry } from '../hooks/useGeometry'
 import type { ActionRunner, DialogRequest } from '../types/dialog'
@@ -88,44 +87,44 @@ export default function LiveOperations({
         }}
       />
       <div className="live-main" data-testid="live-main">
+        <OperatorControls
+          compact
+          snapshot={snapshot}
+          connected={connected}
+          hasToken={hasToken}
+          notice={notice}
+          error={actionError}
+          onOpen={setActive}
+          onHold={() => void run(() => sendHold())}
+          onReplay={() => void run(async () => {
+            const trialId = await loadReplay()
+            return `Replay ${trialId} loaded. It is not live hardware.`
+          })}
+          onListen={() => void run(async () => {
+            const listening = snapshot?.devices?.some((device) => device.device_id === 'xvf3800' && device.source_mode === 'live')
+            return listening ? stopMicrophone() : listenMicrophone()
+          })}
+          onRadarDummy={() => void run(async () => (
+            snapshot?.radar?.case_name === 'dummy_mr60bha2' ? stopRadar() : startDummyRadar()
+          ))}
+          onPiMimic={() => void run(async () => (
+            snapshot?.radar?.case_name === 'Pi mimic' ? stopRadar() : startPiMimic()
+          ))}
+          onRadarLive={() => void run(async () => {
+            const live = snapshot?.devices?.some((device) => device.device_id === 'mr60bha2' && device.source_mode === 'live')
+            return live ? stopRadar() : listenRadar()
+          })}
+          onPlan={() => void run(() => planGrid())}
+          onObstacle={() => void run(() => guardObstacle())}
+          onSignal={() => void run(() => readSearchSignal())}
+        />
         <div className="live-primary" data-testid="live-primary">
           <TestbedOverview snapshot={snapshot} geometry={geometry} error={error} showBoxes={showBoxes} onOpen={setActive} />
           <CameraCluster snapshot={snapshot} onOpen={setActive} />
-          <div className="live-sensors">
-            <RadarOverview snapshot={snapshot} onOpen={setActive} />
-            <SensorStrip snapshot={snapshot} onOpen={setActive} />
-          </div>
+          <RadarOverview snapshot={snapshot} onOpen={setActive} />
         </div>
         <div className="live-secondary">
-          <ReasoningSummary snapshot={snapshot} onOpen={setActive} />
-          <EventSummary snapshot={snapshot} onOpen={setActive} />
-          <OperatorControls
-            snapshot={snapshot}
-            connected={connected}
-            hasToken={hasToken}
-            notice={notice}
-            error={actionError}
-            onOpen={setActive}
-            onHold={() => void run(() => sendHold())}
-            onReplay={() => void run(async () => {
-              const trialId = await loadReplay()
-              return `Replay ${trialId} loaded. It is not live hardware.`
-            })}
-            onListen={() => void run(async () => {
-              const listening = snapshot?.devices?.some((device) => device.device_id === 'xvf3800' && device.source_mode === 'live')
-              return listening ? stopMicrophone() : listenMicrophone()
-            })}
-            onRadarDummy={() => void run(async () => (
-              snapshot?.radar?.case_name === 'dummy_mr60bha2' ? stopRadar() : startDummyRadar()
-            ))}
-            onRadarLive={() => void run(async () => {
-              const live = snapshot?.devices?.some((device) => device.device_id === 'mr60bha2' && device.source_mode === 'live')
-              return live ? stopRadar() : listenRadar()
-            })}
-            onPlan={() => void run(() => planGrid())}
-            onObstacle={() => void run(() => guardObstacle())}
-            onSignal={() => void run(() => readSearchSignal())}
-          />
+          <SignalWall snapshot={snapshot} onOpen={setActive} />
         </div>
       </div>
       <footer className="app-footer">
@@ -164,7 +163,7 @@ export default function LiveOperations({
       {active?.kind === 'export' ? <TrialExportDialog open snapshot={snapshot} run={run} onClose={close} /> : null}
       {active?.kind === 'knock' ? (
         <DetailDialog open title="Knock test" state={snapshot?.solenoid.state ?? 'DISARMED'} onClose={close} dismissOnBackdrop={false}>
-          <p>This logs a software knock request. The 12 V output stays locked and the solenoid is not fired.</p>
+          <p>This sends KNOCK to the Arduino solenoid sketch. Pin A0 taps three times: 200 ms on, 200 ms off. Stop drives the pin low.</p>
           <div className="button-row">
             <button type="button" className="btn" onClick={close}>Cancel</button>
             <button

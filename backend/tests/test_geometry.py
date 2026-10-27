@@ -2,6 +2,7 @@ from app.config.geometry import (
     center_separations,
     load_geometry,
     point_in_traversable,
+    search_lattice,
     table_cm_to_display_px,
 )
 
@@ -25,6 +26,16 @@ def test_plan_dimensions_and_separations() -> None:
     points = {point["id"]: point for point in geometry["measurement_points"]}
     assert points["A_FAR"]["y_cm"] - points["A_NEAR"]["y_cm"] == 25
     assert points["B_NEAR"]["y_cm"] - points["B_FAR"]["y_cm"] == 25
+
+
+def test_search_grid_is_three_by_three_and_turns_at_the_border() -> None:
+    cells = search_lattice()
+    assert len(cells) == 9
+    assert cells[2]["id"] == "r1c3"
+    assert cells[2]["heading_deg"] == 0
+    assert cells[3]["heading_deg"] == 180
+    assert cells[1]["site_id"] == "A_NEAR"
+    assert cells[2]["border_cm"] < cells[0]["border_cm"]
 
 
 def test_display_conversion_keeps_y_down() -> None:

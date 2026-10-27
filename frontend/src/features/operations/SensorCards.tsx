@@ -1,3 +1,4 @@
+import SignalScope from '../../components/live/SignalScope'
 import type { OperationsSnapshot } from '../../types/operations'
 
 export default function SensorCards({ snapshot }: { snapshot: OperationsSnapshot | null }) {
@@ -19,6 +20,7 @@ export default function SensorCards({ snapshot }: { snapshot: OperationsSnapshot
         <p className="text-xs text-slate-500">
           {snapshot?.acoustic?.score_semantics ?? 'not scored'} {snapshot?.acoustic?.model_score ?? ''} · origin unknown · {snapshot?.acoustic?.source_mode ?? 'unavailable'}
         </p>
+        <SignalScope samples={snapshot?.acoustic_waveform ?? []} label="Acoustic waveform" large />
         <Waveform values={envelope} />
         <p className="mt-1 text-xs text-slate-500">{snapshot?.acoustic_envelope_note ?? 'No envelope.'}</p>
         {snapshot?.impulse ? <p className="text-xs">Strongest impulse in this trial: {snapshot.impulse.class} at {snapshot.impulse.site_id ?? 'unknown site'}.</p> : null}
@@ -27,11 +29,13 @@ export default function SensorCards({ snapshot }: { snapshot: OperationsSnapshot
         <h3 className="font-semibold">Piezo contact vibration</h3>
         <p className="mt-2 text-3xl font-semibold">{snapshot?.piezo?.peak_adc_counts ?? '—'} <span className="text-base">counts</span></p>
         <p className="text-xs text-slate-500">{snapshot?.piezo?.contact_state ?? 'no contact sample'} · {snapshot?.piezo?.site_id ?? '—'} · clipped {snapshot?.piezo?.clipped ? 'yes' : 'no'}</p>
+        <SignalScope samples={snapshot?.piezo_waveform ?? []} label="Piezo contact waveform" color="#b45309" large />
         <p className="mt-1 text-xs">ADC counts are not acceleration in g. The inventory has one disk, assigned as a surface contact receiver.</p>
       </article>
       <article className="ops-card">
         <h3 className="font-semibold">Rover and motor</h3>
-        <p className="mt-2 text-sm">Arduino Uno and Cytron MDD10A are not connected. Encoder counts are unavailable.</p>
+        <SignalScope samples={snapshot?.rover_trace?.left ?? []} secondary={snapshot?.rover_trace?.right ?? []} label="Encoder ticks" large />
+        <p className="mt-2 text-sm">{snapshot?.rover_trace?.note ?? 'Encoder ticks appear when the walk is running or the controller sends ENC.'}</p>
         <p className="text-xs text-slate-500">Heading {snapshot?.pose?.heading_deg ?? '—'} · pose source {snapshot?.pose?.source ?? 'none'}</p>
       </article>
       <article className="ops-card">

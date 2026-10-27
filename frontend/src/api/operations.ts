@@ -61,7 +61,15 @@ export async function startSimulation(): Promise<string> {
   const response = await fetch('/api/mission/run', { method: 'POST' })
   const text = await response.text()
   if (!response.ok) throw new Error(text || 'Run failed')
-  return 'Simulation running. Sample image, audio, and sensor cases update every 5 seconds.'
+  try {
+    const payload = JSON.parse(text) as { rover?: { sent?: boolean; port?: string } }
+    if (payload.rover?.sent && payload.rover.port) {
+      return `Rover started on ${payload.rover.port}. The map follows the cells it reports.`
+    }
+  } catch {
+    // The run still started when the body is not the rover payload.
+  }
+  return 'Grid running. Connect the rover and press Start again to track it on the map.'
 }
 
 export async function haltSimulation(): Promise<string> {
@@ -85,7 +93,7 @@ export async function clearOperationsView(): Promise<void> {
 export async function sendHold(): Promise<string> {
   const response = await fetch('/api/mission/stop', { method: 'POST' })
   if (!response.ok) throw new Error(await response.text())
-  return 'Hold sent. Knock request disarmed. Output stays locked.'
+  return 'Hold sent. Knock request disarmed. STOP drives Arduino pin A0 low when that port is open.'
 }
 
 export async function armSolenoid(consent: boolean): Promise<string> {
@@ -97,12 +105,12 @@ export async function armSolenoid(consent: boolean): Promise<string> {
   if (!response.ok) throw new Error(text || 'Arm request failed')
   const payload = JSON.parse(text) as { accepted?: boolean; reason?: string }
   if (!payload.accepted) throw new Error(payload.reason ?? 'Arm refused')
-  return 'Armed in software. The 12 V output is still locked.'
+  return 'Armed. A confirmed knock asks the Arduino to tap pin A0 three times.'
 }
 
 export async function requestKnock(): Promise<string> {
   const response = await postJson('/api/operations/knock', {
-    width_ms: 40,
+    width_ms: 200,
     consent: true,
     rover_moving: false,
     now_ms: Date.now(),
@@ -110,9 +118,16 @@ export async function requestKnock(): Promise<string> {
   })
   const text = await response.text()
   if (!response.ok) throw new Error(text || 'Knock request failed')
-  const payload = JSON.parse(text) as { accepted?: boolean; reason?: string }
+  const payload = JSON.parse(text) as {
+    accepted?: boolean
+    reason?: string
+    link?: { sent?: boolean; port?: string | null }
+  }
   if (!payload.accepted) throw new Error(payload.reason ?? 'Knock refused')
-  return 'Request logged. Output energized: no.'
+  if (payload.link?.sent) {
+    return `Knock sent to ${payload.link.port}. Pin A0 taps three times, 200 ms on and 200 ms off.`
+  }
+  return 'Knock accepted. No Arduino port is open, so pin A0 was not driven.'
 }
 
 export async function captureCamera(cameraId: string): Promise<void> {
@@ -148,6 +163,13 @@ export async function startDummyRadar(): Promise<string> {
   const response = await fetch('/api/radar/dummy', { method: 'POST' })
   const payload = await response.json()
   if (!response.ok || payload.ok === false) throw new Error(payload.message ?? 'Dummy radar did not start')
+  return payload.message as string
+}
+
+export async function startPiMimic(): Promise<string> {
+  const response = await fetch('/api/radar/pi-mimic', { method: 'POST' })
+  const payload = await response.json()
+  if (!response.ok || payload.ok === false) throw new Error(payload.message ?? 'Pi mimic did not start')
   return payload.message as string
 }
 

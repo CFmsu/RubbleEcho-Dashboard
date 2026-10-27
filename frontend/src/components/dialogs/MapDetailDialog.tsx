@@ -35,7 +35,7 @@ export default function MapDetailDialog({
           <SandTableFigure geometry={geometry} snapshot={snapshot} showBoxes={showBoxes} selectedId={selectedId} onSelect={setSelectedId} />
         </div>
       ) : <p>Table geometry is unavailable.</p>}
-      <p className="quiet-line">{sampledCount(snapshot)}/6 sampled points · {snapshot?.pose?.valid ? 'rover pose valid' : 'rover pose unavailable'} · ground truth {showBoxes ? 'outlines shown' : 'hidden'}</p>
+      <p className="quiet-line">{sampledCount(snapshot)}/{snapshot?.scan_route?.length || geometry?.measurement_points.length || 0} grid squares · {snapshot?.pose?.valid ? 'rover pose valid' : 'rover pose unavailable'} · ground truth {showBoxes ? 'outlines shown' : 'hidden'}</p>
       <label className="check-line">
         <input
           type="checkbox"

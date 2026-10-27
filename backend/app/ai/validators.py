@@ -32,6 +32,7 @@ def validate_reasoning(
     event_ids = payload.get("event_ids")
     hypotheses = payload.get("hypotheses")
     summary = payload.get("summary")
+    narrative = payload.get("narrative")
     recommendation = payload.get("recommendation")
     unknowns = payload.get("unknowns")
     if not isinstance(event_ids, list) or not all(isinstance(item, str) for item in event_ids):
@@ -42,6 +43,8 @@ def validate_reasoning(
         return None, "invalid_hypotheses"
     if not isinstance(summary, str) or not summary.strip():
         return None, "invalid_summary"
+    if narrative is not None and not isinstance(narrative, str):
+        return None, "invalid_narrative"
     if not isinstance(unknowns, list):
         return None, "invalid_unknowns"
     if not isinstance(recommendation, dict):
@@ -87,6 +90,7 @@ def validate_reasoning(
         "event_ids": event_ids,
         "hypotheses": cleaned_hypotheses,
         "summary": summary.strip(),
+        "narrative": narrative.strip() if isinstance(narrative, str) else "",
         "recommendation": {
             "type": recommendation_type,
             "point_id": point_id,

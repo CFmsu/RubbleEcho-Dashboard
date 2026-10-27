@@ -27,6 +27,13 @@ async def radar_dummy() -> dict:
     return start_dummy()
 
 
+@router.post("/api/radar/pi-mimic")
+async def radar_pi_mimic() -> dict:
+    from app.services.pi_mimic import start_mimic
+
+    return start_mimic()
+
+
 @router.post("/api/radar/stop")
 async def radar_stop() -> dict:
     from app.services.radar_link import stop_radar

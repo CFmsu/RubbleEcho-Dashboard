@@ -16,6 +16,13 @@ score is a number from 0 to 1.
 recommendation.requires_approval must be true.
 recommendation.point_id must be one of the supplied point_ids, or null.
 Keep hypotheses to one item and the summary to one sentence, so the JSON is finished.
+The cells list is every place already sampled. If one cell is clearly stronger, set recommendation.type to rescan_at_point and point_id to that cell. If every reading is weak, use needs_operator and point_id null.
+The summary names the first cell a person should check and what was heard there.
+narrative is three or four short sentences a person can read aloud at the table.
+Name the first cell, say what was heard in everyday words (a knock, a scrape, or only the room),
+say whether a pulse showed up, and say the picture is the camera frame from that stop.
+Then name the next cell. Do not say a person is buried.
+Do not mention scores, tokens, decibels, adc counts, JSON, or model names.
 """
 
 
@@ -23,9 +30,11 @@ def build_messages(
     evidence: list[dict],
     point_ids: list[str],
     search_plan: dict | None = None,
+    cells: list[dict] | None = None,
 ) -> list[dict[str, str]]:
     payload = {
         "point_ids": point_ids,
+        "cells": cells or [],
         "evidence": evidence,
         "search_plan": _plan_brief(search_plan),
         "constraints": [
@@ -46,6 +55,7 @@ def build_messages(
                 }
             ],
             "summary": "One sentence that uses only the evidence.",
+            "narrative": "Walk to the strongest cell you were given. Say what was heard there in everyday words, whether a pulse showed up, and that the picture is the camera frame from that stop.",
             "recommendation": {
                 "type": "needs_operator",
                 "point_id": None,

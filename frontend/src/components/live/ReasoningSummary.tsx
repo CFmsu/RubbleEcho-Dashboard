@@ -45,16 +45,9 @@ export default function ReasoningSummary({
             <span key={label} className="chip">{label} · {value}</span>
           ))}
         </p>
-        <p className="quiet-line">{recommendation}</p>
-        <p className="quiet-line">Uncalibrated · {ai}</p>
-        {snapshot?.ai_usage && snapshot.ai_usage.total_tokens > 0 ? (
-          <p className="quiet-line">
-            {snapshot.ai_usage.estimated_usd < 0.01
-              ? `$${snapshot.ai_usage.estimated_usd.toFixed(6)}`
-              : `$${snapshot.ai_usage.estimated_usd.toFixed(4)}`}{' '}
-            catalog estimate · {snapshot.ai_usage.total_tokens} tokens. Not an invoice.
-          </p>
-        ) : null}
+        <p className="quiet-line">{reasoning?.narrative?.trim() ? 'The briefing names the first square and carries the camera frame.' : recommendation}</p>
+        <p className="quiet-line">{ai}</p>
+        <a className="btn" href="/api/briefing.pdf">Download the briefing</a>
       </div>
     </Panel>
   )

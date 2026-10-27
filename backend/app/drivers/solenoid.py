@@ -1,9 +1,19 @@
 class SolenoidController:
-    """Software knock-request gate. This object never drives a GPIO or MOSFET."""
+    """Knock gate for the Arduino sketch on pin A0.
 
-    MAX_PULSE_MS = 40
+    One KNOCK is three taps: 200 ms high, 200 ms low. START repeats a group
+    every 5 s. This object records the request. The serial write lives in
+    solenoid_link and is the only path that asks the board to drive the pin.
+    """
+
+    PIN = "A0"
+    PULSE_MS = 200
+    GAP_MS = 200
+    TAPS = 3
+    INTERVAL_MS = 5000
+    MAX_PULSE_MS = PULSE_MS
     ONSET_SEPARATION_MS = 250
-    MAX_GROUP = 3
+    MAX_GROUP = TAPS
 
     def __init__(self) -> None:
         self.reset()
@@ -96,7 +106,17 @@ class SolenoidController:
             "pulses_logged": len(self.log),
             "pulses_in_group": self.pulses_in_group,
             "last_request": last,
-            "note": "GPIO output is locked. Accepting a request does not energize the 12 V circuit.",
+            "pattern": {
+                "pin": self.PIN,
+                "on_ms": self.PULSE_MS,
+                "off_ms": self.GAP_MS,
+                "taps": self.TAPS,
+                "interval_ms": self.INTERVAL_MS,
+            },
+            "note": (
+                "Arduino pin A0. One knock is three taps, 200 ms on and 200 ms off. "
+                "START repeats that group every 5 s. STOP drives the pin low."
+            ),
         }
 
     def _result(self, accepted: bool, reason: str) -> dict:

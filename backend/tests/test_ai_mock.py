@@ -92,6 +92,20 @@ def test_validator_rejects_auto_execute_and_unknown_ids() -> None:
     assert error == "approval_required"
 
 
+def test_fenced_json_is_still_read() -> None:
+    result, error = interpret_model_text(
+        '```json\n{"event_ids":["evt_0001"],"hypotheses":[{"label":"check_A_NEAR","score":0.7,"evidence_event_ids":["evt_0001"],"limitations":["scripted sample"]}],"summary":"Check A_NEAR first. A knock was heard there.","recommendation":{"type":"rescan_at_point","point_id":"A_NEAR","requires_approval":true},"unknowns":["open air only"]}\n```',
+        {"evt_0001"},
+        {"A_NEAR"},
+        "nvidia/test",
+        12,
+        False,
+    )
+    assert error is None
+    assert result is not None
+    assert result["recommendation"]["point_id"] == "A_NEAR"
+
+
 def test_scene_note_rejects_a_motor_field() -> None:
     scene, error = interpret_scene(
         '{"scene":"Sand fills the frame.","obstacles":[],"open_area":"The middle is clear.","motor_speed":1}'

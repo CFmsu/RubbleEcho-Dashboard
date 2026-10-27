@@ -41,8 +41,17 @@ def handle_line(line: str) -> dict:
             "observation": parse_ultrasonic(payload),
             "error": None,
         }
-    if text.startswith("PIEZO ") or text.startswith("ENC ") or text.startswith("ACK "):
-        return {"kind": text.split(" ", 1)[0].lower(), "observation": None, "error": None}
+    if text.startswith("PIEZO ") or text.startswith("ENC "):
+        kind, _, body = text.partition(" ")
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            return {"kind": kind.lower(), "observation": None, "error": "malformed"}
+        if not isinstance(payload, dict):
+            return {"kind": kind.lower(), "observation": None, "error": "malformed"}
+        return {"kind": kind.lower(), "observation": payload, "error": None}
+    if text.startswith("ACK "):
+        return {"kind": "ack", "observation": None, "error": None}
     return {"kind": "ignored", "observation": None, "error": None}
 
 

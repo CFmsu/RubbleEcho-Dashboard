@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app.api.auth import require_operator
 from app.persistence.store import load_trial
+from app.services.briefing import briefing_pdf
 from app.services.mission import annotate, export_trial, ground_truth, start_trial
 from app.state import get_state
 
@@ -77,6 +78,18 @@ async def overlay(trial_id: str, _: None = Depends(require_operator)) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail={"error": "trial not found"})
     return result
+
+
+@router.get("/api/briefing.pdf")
+async def briefing() -> Response:
+    state = get_state()
+    payload = briefing_pdf(state)
+    name = f"{state.trial_id or 'rubbleecho'}-briefing.pdf"
+    return Response(
+        content=payload,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
 
 
 @router.get("/api/trials/{trial_id}/export")

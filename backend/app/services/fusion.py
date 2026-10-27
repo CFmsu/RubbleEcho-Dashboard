@@ -1,3 +1,6 @@
+from app.services.briefing import narrate
+
+
 def gcc_phat_delays(mics: object, sample_rate: float = 16000.0, max_lag: int = 3) -> dict:
     """Sub-sample GCC-PHAT across 4 mics.
 
@@ -204,6 +207,7 @@ def local_assessment(events: list[dict], heatmap: list[dict]) -> dict:
         "event_ids": knock_ids[:8],
         "hypotheses": hypotheses,
         "summary": summary,
+        "narrative": narrate(heatmap, site_id),
         "recommendation": {
             "type": "needs_operator",
             "point_id": site_id,

@@ -28,6 +28,8 @@ export default function RadarDetailDialog({
           distanceM={radar?.distance_m}
           presence={radar?.human_presence}
           targets={radar?.num_targets}
+          breath={radar?.breath_rate_bpm}
+          heart={radar?.heart_rate_bpm}
           running={radarRunning(snapshot)}
         />
       </div>

@@ -5,12 +5,13 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.config.geometry import load_geometry
+from app.config.geometry import load_geometry, search_lattice
 from app.drivers.piezo import piezo_features
 from app.persistence.store import data_dir
 from app.services.clock import utc_now
-from app.services.feature_extraction import classify_window, envelope_dbfs
+from app.services.feature_extraction import classify_window, display_waveform, envelope_dbfs
 from app.services.mission import _sync_trial, _trial_shell
+from app.services.signals import append_ticks, contact_waveform, encoder_step, facing_deg, place_echo, react_to_range
 from app.services.sim_media import sample_png, sample_wav
 from app.state import get_state
 
@@ -18,7 +19,9 @@ _lock = threading.Lock()
 _timer: threading.Timer | None = None
 _generation = 0
 _index = 0
-POINT_SECONDS = 5.0
+_hold = "signs"
+_steps = 0
+POINT_SECONDS = 1.0
 SIMULATED_DEVICES = ("camera_top", "mr60bha2", "hc_sr04", "xvf3800", "piezo")
 
 CASES = {
@@ -30,9 +33,21 @@ CASES = {
     "C_FAR": {"audio": "ambient", "piezo": 31, "distance_cm": 44.2, "presence": False, "range_m": None, "bearing": None, "case": "control_quiet", "score": 0.1, "color": (120, 150, 170)},
 }
 
+QUIET = {
+    "audio": "ambient",
+    "piezo": 20,
+    "distance_cm": 55.0,
+    "presence": False,
+    "range_m": None,
+    "bearing": None,
+    "case": "grid_quiet",
+    "score": 0.05,
+    "color": (120, 150, 170),
+}
+
 
 def start_run(schedule: bool = True) -> dict:
-    global _index
+    global _index, _hold, _steps
     from app.services.radar_link import stop_radar
 
     stop_radar()
@@ -60,22 +75,63 @@ def start_run(schedule: bool = True) -> dict:
         unit=None,
     )
     _index = 0
+    _hold = "signs"
+    _steps = 0
+    state.scan_route = search_lattice()
     _sync_trial(state)
+    from app.drivers.motor_link import transmit
+
+    link = transmit("A")
+    if link["sent"]:
+        state.add_event(
+            device="arduino_uno",
+            sensor="motors",
+            summary=(
+                f"Rover auto started on {link['port']}. "
+                "The route is the measured 101 by 76 cm grid. No ultrasonic is on this rover."
+            ),
+            quality="transmitted",
+            captured_at_utc=utc_now(),
+            value=None,
+            unit=None,
+        )
     if schedule:
         _arm(0.05)
-    return {"ok": True, "status": 200, "mode": "SIMULATION", "trial_id": state.trial_id}
+    return {
+        "ok": True,
+        "status": 200,
+        "mode": "SIMULATION",
+        "trial_id": state.trial_id,
+        "rover": link,
+    }
 
 
 def advance_run() -> str | None:
     point_id = _publish()
-    if point_id is None:
-        return None
-    if _index >= len(load_geometry()["measurement_points"]):
-        _finish(get_state())
+    state = get_state()
+    if _index >= len(state.scan_route or []) and _hold == "signs" and state.run_active:
+        _finish(state)
     return point_id
 
 
+def note_live_obstacle() -> None:
+    """A live range sample uses the same stop, reroute, and listen rule as the walk."""
+    state = get_state()
+    if not state.run_active:
+        return
+    blocked = react_to_range(state, _index)
+    _aim(state, _index)
+    if blocked and state.rover_trace is not None:
+        state.rover_trace["note"] = (
+            f"Ultrasonic {(state.ultrasonic or {}).get('distance_cm')} cm blocked {blocked}. Rover rerouted and is listening."
+        )
+        state.rover_trace["phase"] = "LISTEN"
+
+
 def halt_run() -> dict:
+    from app.drivers.motor_link import transmit
+
+    transmit("S")
     state = get_state()
     was_running = state.run_active or state.mode == "simulation" or state.phase not in {"IDLE"}
     cancel_run()
@@ -108,7 +164,7 @@ def cancel_run() -> None:
             _timer = None
 
 
-def media_file(kind: str) -> Path | None:
+def media_file(kind: str, point_id: str | None = None) -> Path | None:
     state = get_state()
     raw = state.media_camera if kind == "camera" else state.media_audio
     if not raw:
@@ -117,34 +173,81 @@ def media_file(kind: str) -> Path | None:
     root = (data_dir() / "sim_media").resolve()
     if root not in path.parents or not path.is_file():
         return None
+    if point_id and point_id.replace("_", "").isalnum():
+        named = path.parent / f"{point_id}{path.suffix}"
+        if named.is_file() and root in named.resolve().parents:
+            return named.resolve()
     return path
 
 
+def _reading_score(acoustic: dict | None, radar: dict | None) -> float:
+    """Uncalibrated rank from the sound class and the radar range at one cell.
+
+    A louder or closer cell sorts first. The number is not a probability that a person is buried there.
+    """
+    label = str((acoustic or {}).get("class") or "")
+    base = {"knock": 0.55, "scratch/scrape": 0.35, "scratch": 0.35, "periodic_tapping": 0.3}.get(label, 0.08)
+    radar = radar or {}
+    if radar.get("human_presence") is True:
+        base += 0.15
+    distance = radar.get("distance_m")
+    if isinstance(distance, (int, float)) and not isinstance(distance, bool) and distance > 0:
+        base += 0.25 * max(0.0, 1.0 - min(float(distance), 1.5) / 1.5)
+    return round(min(base, 0.95), 2)
+
+
 def _publish() -> str | None:
-    global _index
+    global _index, _hold, _steps
     state = get_state()
     if not state.run_active:
         return None
-    points = load_geometry()["measurement_points"]
+    points = state.scan_route or search_lattice()
+    while _index < len(points) and points[_index].get("blocked"):
+        _index += 1
     if _index >= len(points):
         return None
     point = points[_index]
-    case = CASES[point["id"]]
-    _index += 1
+    site = point.get("site_id")
+    case = dict(CASES.get(site, QUIET))
+    case["distance_cm"] = float(point["border_cm"])
+    _steps += 1
     stamp = utc_now()
-    state.scan_stage = str(point["id"])
+    label = f"{point['id']} ({site})" if site else str(point["id"])
     _mark_devices(state, stamp)
     _camera(state, point, case, stamp)
-    _audio(state, point, case, stamp)
-    _piezo(state, point, case, stamp)
     _ultrasonic(state, point, case, stamp)
-    _radar(state, point, case, stamp)
-    _pose(state, point, stamp)
-    _record_sensor_events(state, point, stamp)
+    heading = float(point["heading_deg"])
+    record_heatmap = False
+    if _hold == "signs":
+        _audio(state, point, case, stamp)
+        _piezo(state, point, case, stamp)
+        state.phase = "SIGNS"
+        state.scan_stage = f"SIGNS {point['id']}"
+        _pose(state, point, stamp, heading)
+        append_ticks(state, 0.4, 0.4, "simulation", f"Stopped in {label}. Checking signs.")
+        summary = f"Stopped in {label}. Signs: {state.acoustic['class'] if state.acoustic else 'no audio'}."
+        _hold = "vitals"
+    else:
+        _radar(state, point, case, stamp)
+        turning = float(point["border_cm"]) < 20 and _index + 1 < len(points)
+        state.phase = "TURN" if turning else "VITALS"
+        state.scan_stage = f"{state.phase} {point['id']}"
+        _pose(state, point, stamp, heading)
+        if turning:
+            left, right = encoder_step(180.0 if heading == 0.0 else -180.0)
+            summary = f"Border {point['border_cm']} cm at {label}. Routing the next row the other way."
+            append_ticks(state, left, right, "simulation", summary)
+        else:
+            summary = f"Vitals checked at {label}. Border {point['border_cm']} cm."
+            append_ticks(state, 0.4, 0.4, "simulation", summary)
+        _record_sensor_events(state, point, stamp)
+        record_heatmap = True
+        _index += 1
+        _hold = "signs"
     event = state.add_event(
         device="simulation",
         sensor="script",
-        summary=f"SIMULATION {point['id']} case {case['case']}. Scripted sample, not a live measurement.",
+        summary=summary,
         quality="synthetic",
         captured_at_utc=stamp,
         value=case["distance_cm"],
@@ -152,22 +255,30 @@ def _publish() -> str | None:
         site_id=point["id"],
         acoustic_class=state.acoustic["class"] if state.acoustic else None,
     )
-    state.heatmap = [item for item in state.heatmap if item["point_id"] != point["id"]]
-    state.heatmap.append(
+    sample_id = site or point["id"]
+    if record_heatmap:
+        state.heatmap = [item for item in state.heatmap if item["point_id"] != sample_id]
+        state.heatmap.append(
         {
-            "point_id": point["id"],
+            "point_id": site or point["id"],
             "x_cm": point["x_cm"],
             "y_cm": point["y_cm"],
-            "score": case["score"],
-            "score_semantics": "simulation_scenario_not_a_measurement",
+            "score": _reading_score(state.acoustic, state.radar),
+            "score_semantics": "uncalibrated_from_cell_readings",
+            "readings": {
+                "sound": (state.acoustic or {}).get("class"),
+                "radar_presence": (state.radar or {}).get("human_presence"),
+                "distance_m": (state.radar or {}).get("distance_m"),
+                "ultrasonic_cm": (state.ultrasonic or {}).get("distance_cm"),
+            },
             "interpolated": False,
             "sample_count": 1,
-            "method": "scripted_case",
+            "method": "cell_readings",
             "source_mode": "simulation",
             "quality": "synthetic",
             "evidence_event_ids": [event["event_id"]],
-        }
-    )
+            }
+        )
     _sync_trial(state)
     return str(point["id"])
 
@@ -175,10 +286,11 @@ def _publish() -> str | None:
 def _camera(state, point: dict, case: dict, stamp: str) -> None:
     folder = data_dir() / "sim_media" / state.trial_id / "camera"
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{point['id']}.png"
-    path.write_bytes(sample_png(str(point["id"]), case["color"]))
+    media_id = str(point.get("site_id") or point["id"])
+    path = folder / f"{media_id}.png"
+    path.write_bytes(sample_png(media_id, case["color"]))
     state.media_camera = str(path)
-    name = f"camera/{point['id']}.png"
+    name = f"camera/{media_id}.png"
     if name not in state.trial["media_files"]:
         state.trial["media_files"].append(name)
     camera = state.cameras[0]
@@ -192,7 +304,7 @@ def _camera(state, point: dict, case: dict, stamp: str) -> None:
             "last_frame_utc": stamp,
             "error": None,
             "frame_available": True,
-            "image_url": f"/api/simulation/camera.png?point={point['id']}",
+            "image_url": f"/api/simulation/camera.png?point={point.get('site_id') or point['id']}",
         }
     )
 
@@ -211,6 +323,7 @@ def _audio(state, point: dict, case: dict, stamp: str) -> None:
     acoustic["source_mode"] = "simulation"
     state.acoustic = acoustic
     state.acoustic_envelope = envelope_dbfs(samples[:1600])
+    state.acoustic_waveform = display_waveform(samples[:1600])
     if acoustic["class"] in {"knock", "scratch/scrape"}:
         state.impulse = acoustic
         state.impulse_envelope = state.acoustic_envelope
@@ -230,9 +343,11 @@ def _audio(state, point: dict, case: dict, stamp: str) -> None:
 
 
 def _piezo(state, point: dict, case: dict, stamp: str) -> None:
-    features = piezo_features([float(case["piezo"]), 0.0, 0.0], 1000, "scripted_contact", point["id"], False)
+    samples = contact_waveform(float(case["piezo"]))
+    features = piezo_features(samples, 1000, "scripted_contact", point["id"], False)
     features["source_mode"] = "simulation"
     state.piezo = features
+    state.piezo_waveform = display_waveform(samples)
     state.samples.append(
         {
             "captured_at_utc": stamp,
@@ -303,11 +418,13 @@ def _radar(state, point: dict, case: dict, stamp: str) -> None:
     }
 
 
-def _pose(state, point: dict, stamp: str) -> None:
+def _pose(state, point: dict, stamp: str, heading: float) -> None:
+    if getattr(state, "motor_tracking", False):
+        return
     pose = {
         "x_cm": point["x_cm"],
         "y_cm": point["y_cm"],
-        "heading_deg": 180,
+        "heading_deg": round(heading, 1),
         "source": "simulation_script",
         "valid": True,
         "error_cm": None,
@@ -315,7 +432,19 @@ def _pose(state, point: dict, stamp: str) -> None:
         "note": "Scripted simulation position, not a localization fix.",
     }
     state.pose = pose
-    state.pose_trail.append(pose)
+    place_echo(state)
+
+
+def _aim(state, cursor: int) -> float:
+    pose = state.pose or {}
+    if pose.get("x_cm") is None:
+        return 0.0
+    previous = float(pose.get("heading_deg") or 0.0)
+    heading = facing_deg(state.scan_route or [], cursor, pose, previous)
+    pose["heading_deg"] = round(heading, 1)
+    state.pose_trail.append(dict(pose))
+    place_echo(state)
+    return heading - previous
 
 
 def _record_sensor_events(state, point: dict, stamp: str) -> None:
@@ -390,7 +519,7 @@ def _finish(state) -> None:
     state.run_active = False
     state.phase = "COMPLETE"
     state.scan_stage = "COMPLETE"
-    state.run_elapsed_s = round(len(load_geometry()["measurement_points"]) * POINT_SECONDS, 1)
+    state.run_elapsed_s = round(len(state.scan_route) * 2 * POINT_SECONDS, 1)
     from app.services.mission import request_reason
     from app.services.search_plan import plan_from_photo
 
@@ -400,7 +529,7 @@ def _finish(state) -> None:
     state.add_event(
         device="simulation",
         sensor="script",
-        summary="Simulation finished. Six scripted cases with sample image, audio, and sensor files.",
+        summary="Simulation finished. The rover stopped in each cell of the 3 by 3 grid, checked signs, then vitals, and turned at each border.",
         quality="synthetic",
         captured_at_utc=utc_now(),
         value=None,
@@ -416,11 +545,12 @@ def _tick(token: int) -> None:
         return
     elapsed = time.monotonic() - state.run_started
     state.run_elapsed_s = round(elapsed, 1)
-    points = load_geometry()["measurement_points"]
-    due = min(len(points), int(elapsed // POINT_SECONDS) + 1)
-    while _index < due:
-        _publish()
-    if _index >= len(points) and elapsed >= len(points) * POINT_SECONDS:
+    points = state.scan_route or search_lattice()
+    due = min(len(points) * 2, int(elapsed // POINT_SECONDS) + 1)
+    while _steps < due:
+        if _publish() is None:
+            break
+    if _index >= len(state.scan_route or points) and _hold == "signs":
         _finish(state)
         return
     _arm(1.0)
