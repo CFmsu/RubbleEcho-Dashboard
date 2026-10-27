@@ -59,6 +59,12 @@ export interface HeatPoint {
   interpolated: boolean
   sample_count: number
   method: string
+  readings?: {
+    sound?: string | null
+    radar_presence?: boolean | null
+    distance_m?: number | null
+    ultrasonic_cm?: number | null
+  }
   source_mode: SourceMode
   quality: string
   evidence_event_ids: string[]
@@ -80,6 +86,7 @@ export interface OpsEvent {
 export interface Reasoning {
   provider: string
   summary: string
+  narrative?: string
   nvidia_online: boolean
   live_call?: boolean
   model_id?: string | null
@@ -131,6 +138,8 @@ export interface OperationsSnapshot {
     direction: string
     quality: string
     source_mode: SourceMode
+    echo_x_cm?: number | null
+    echo_y_cm?: number | null
   } | null
   acoustic: {
     class: string
@@ -168,8 +177,20 @@ export interface OperationsSnapshot {
     valid: boolean
     error_cm: number | null
     note?: string
+    cell_id?: string
   } | null
   pose_trail: Array<{ x_cm: number | null; y_cm: number | null; source: string; valid: boolean }>
+  rover_leg?: {
+    from_id: string
+    to_id: string
+    from_x_cm: number
+    from_y_cm: number
+    to_x_cm: number
+    to_y_cm: number
+    heading_deg: number
+    duration_ms: number
+    elapsed_ms: number
+  } | null
   solenoid: {
     state: string
     output_energized: boolean
@@ -180,6 +201,20 @@ export interface OperationsSnapshot {
     pulses_logged: number
   }
   heatmap_points: HeatPoint[]
+  scan_route?: Array<{ id: string; x_cm: number; y_cm: number; blocked?: boolean; heading_deg?: number | null; border_cm?: number | null; site_id?: string | null }>
+  blocked_cells?: string[]
+  acoustic_waveform?: number[]
+  piezo_waveform?: number[]
+  rover_trace?: {
+    left: number[]
+    right: number[]
+    left_counts: number
+    right_counts: number
+    unit: string
+    source_mode: SourceMode
+    note?: string
+    phase?: string
+  } | null
   events: OpsEvent[]
   reasoning: Reasoning | null
   search_plan?: SearchPlan | null

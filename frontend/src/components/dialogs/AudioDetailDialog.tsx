@@ -1,5 +1,6 @@
 import type { OperationsSnapshot } from '../../types/operations'
 import { panelState } from '../live/format'
+import SignalScope from '../live/SignalScope'
 import DetailDialog, { FactGrid } from './DetailDialog'
 
 export default function AudioDetailDialog({
@@ -12,10 +13,12 @@ export default function AudioDetailDialog({
   onClose: () => void
 }) {
   const acoustic = snapshot?.acoustic
+  const wave = snapshot?.acoustic_waveform ?? []
   const values = snapshot?.acoustic_envelope_dbfs ?? []
   return (
     <DetailDialog open={open} onClose={onClose} title="ReSpeaker XVF3800" state={panelState(acoustic?.source_mode)}>
-      {values.length === 0 ? <p>No samples</p> : <Envelope values={values} />}
+      <SignalScope samples={wave} label="Acoustic waveform" large />
+      {values.length === 0 ? null : <Envelope values={values} />}
       {snapshot?.mode === 'simulation' && acoustic ? (
         <audio controls src="/api/simulation/audio.wav" />
       ) : null}

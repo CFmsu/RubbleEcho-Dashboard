@@ -7,6 +7,12 @@ from app.state import LIMITATIONS, AppState
 LIVE_BADGE_REQUIRES = ("mr60bha2", "hc_sr04", "xvf3800", "camera_top")
 
 
+def _rover_leg(state: AppState) -> dict | None:
+    from app.services.rover_track import public_leg
+
+    return public_leg(state)
+
+
 def build_snapshot(state: AppState) -> dict:
     ai = ai_status()
     nvidia_online = bool(
@@ -40,8 +46,22 @@ def build_snapshot(state: AppState) -> dict:
         "piezo": state.piezo,
         "pose": state.pose,
         "pose_trail": state.pose_trail,
+        "rover_leg": _rover_leg(state),
         "solenoid": state.solenoid.public_status(),
         "heatmap_points": state.heatmap,
+        "scan_route": [
+            {
+                "id": cell["id"],
+                "x_cm": cell["x_cm"],
+                "y_cm": cell["y_cm"],
+                "blocked": bool(cell.get("blocked")),
+                "heading_deg": cell.get("heading_deg"),
+                "border_cm": cell.get("border_cm"),
+                "site_id": cell.get("site_id"),
+            }
+            for cell in (state.scan_route or [])
+        ],
+        "blocked_cells": list(state.blocked_cells),
         "events": list(reversed(state.events[-40:])),
         "reasoning": state.reasoning,
         "search_plan": state.search_plan,
@@ -52,6 +72,9 @@ def build_snapshot(state: AppState) -> dict:
         "updated_at_utc": utc_now(),
         "calibration": state.calibration,
         "acoustic_envelope_dbfs": state.acoustic_envelope,
+        "acoustic_waveform": state.acoustic_waveform,
+        "piezo_waveform": state.piezo_waveform,
+        "rover_trace": state.rover_trace,
         "acoustic_envelope_note": (
             "Envelope uses dBFS. Exact digital zeros are drawn at -80 dBFS. This is not dB SPL."
         ),

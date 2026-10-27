@@ -33,8 +33,8 @@ export default function MissionToolbar({
         {meta}{status ? ` · ${status}` : ''}
       </p>
       <div className="toolbar-actions">
-        <span title={running ? 'A simulation is already walking the six points.' : 'Start the labeled simulation. It does not command motors or mark hardware live.'}>
-          <button type="button" className="btn primary" disabled={running} onClick={onRun}>Run</button>
+        <span title={running ? 'The walk is going. Stop ends it.' : 'Start the walk across the sand table.'}>
+          <button type="button" className="btn primary" disabled={running} onClick={onRun}>{running ? 'Walking' : 'Start'}</button>
         </span>
         <span title="Stop the simulation and return the console to idle.">
           <button type="button" className="btn danger" onClick={onStop}>Stop</button>
@@ -42,7 +42,7 @@ export default function MissionToolbar({
         <span title={camerasReady ? 'Capture a frame from each open camera.' : 'Disabled until a camera is streaming.'}>
           <button type="button" className="btn" disabled={!camerasReady} onClick={onCapture}>Capture</button>
         </span>
-        <span title={knockArmed ? 'Opens a confirmation. The 12 V output stays locked.' : 'Disarmed. Arming is a separate confirmation and does not energize the output.'}>
+        <span title={knockArmed ? 'Opens a confirmation, then sends KNOCK to the Arduino on pin A0.' : 'Disarmed. Arm first. A knock is three taps of 200 ms on pin A0.'}>
           <button type="button" className="btn" disabled={!knockArmed} onClick={() => onOpen({ kind: 'knock' })}>Knock Test</button>
         </span>
         <span title={canExport ? 'Choose ZIP, JSON, or CSV.' : 'Disabled until a trial is open.'}>

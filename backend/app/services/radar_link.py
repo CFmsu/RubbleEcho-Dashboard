@@ -8,6 +8,7 @@ import time
 
 from app.drivers.radar_mr60bha2 import (
     apply_esphome_line,
+    apply_plain_radar_line,
     blank_reading,
     dummy_sample,
     parse_binary_frames,
@@ -79,6 +80,9 @@ def start_listener() -> dict:
 
 def stop_radar() -> dict:
     global _MODE, _LAST_KEY
+    from app.services.pi_mimic import stop_mimic
+
+    stop_mimic()
     _STOP.set()
     _LAST_KEY = None
     thread = _THREAD
@@ -139,12 +143,20 @@ def _serial_loop(report: dict) -> None:
                 line = raw.decode("utf-8", "ignore").strip()
                 if not line:
                     continue
+                if line.startswith(("ULTRASONIC ", "PIEZO ", "ENC ")):
+                    from app.services.sensor_feed import apply_line
+
+                    apply_line(line)
+                    continue
                 if line.startswith("RADAR ") or line.startswith("{"):
                     observation, error = parse_radar_line(line if line.startswith("RADAR ") else line)
                     if observation is not None:
                         observation["source_mode"] = "live"
                         observation["firmware"] = observation.get("firmware") or "seeed_mr60bha2"
                         _publish(observation)
+                    continue
+                if apply_plain_radar_line(reading, line):
+                    _publish(reading_to_observation(reading, "live", "seeed_mr60bha2_text"))
                     continue
                 if apply_esphome_line(reading, line):
                     _publish(reading_to_observation(reading, "live", "seeed_mr60bha2_esphome"))

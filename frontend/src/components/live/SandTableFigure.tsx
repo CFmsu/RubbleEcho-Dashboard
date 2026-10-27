@@ -1,8 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { OperationsSnapshot, TableGeometry } from '../../types/operations'
-import { heatColor, roverFix } from './navigation'
-
-const GRID_SPACING_CM = 10
+import { driveRoute, echoFix, gridCells, heatColor, roverFix, siteInCell } from './navigation'
 
 export default function SandTableFigure({
   geometry,
@@ -17,26 +15,34 @@ export default function SandTableFigure({
   selectedId: string
   onSelect: (pointId: string) => void
 }) {
-  const clipId = `grid-${useId().replace(/:/g, '')}`
   const elapsed = useRunElapsed(snapshot)
+  const legElapsed = useLegElapsed(snapshot?.rover_leg)
   const width = geometry.outer_cm.width
   const height = geometry.outer_cm.height
-  const inner = geometry.inner_cm
   const scores = new Map(snapshot?.heatmap_points.map((point) => [point.point_id, point]) ?? [])
   const plan = snapshot?.search_plan
-  const cells = new Map(plan?.cells.map((cell) => [cell.point_id, cell]) ?? [])
-  const route = geometry.measurement_points
-  const rover = plan ? null : roverFix(geometry, snapshot, elapsed)
+  const boxes = gridCells(geometry)
+  const named = new Map(geometry.measurement_points.map((point) => [point.id, point]))
+  const drive = driveRoute(geometry, snapshot)
+  const rover = roverFix(geometry, snapshot, elapsed, legElapsed)
+  const liveTrack = snapshot?.pose?.source === 'arduino_uno'
+  const echo = echoFix(rover, snapshot?.ultrasonic?.distance_cm, Boolean(snapshot?.ultrasonic?.echo_timeout), width, height)
   const planPath = (plan?.path ?? [])
-    .map((pointId) => route.find((point) => point.id === pointId))
-    .filter((point): point is (typeof route)[number] => Boolean(point))
+    .map((pointId) => named.get(pointId))
+    .filter((point): point is (typeof geometry.measurement_points)[number] => Boolean(point))
     .map((point) => `${point.x_cm},${point.y_cm}`)
     .join(' ')
-  const traveled = rover
-    ? route
+  const traveled = liveTrack
+    ? (snapshot?.pose_trail ?? [])
+        .filter((pose) => pose.valid && pose.x_cm != null && pose.y_cm != null)
+        .map((pose) => `${pose.x_cm},${pose.y_cm}`)
+        .concat(rover ? [`${rover.x},${rover.y}`] : [])
+        .join(' ')
+    : rover
+    ? drive
         .filter((point) => {
-          const index = route.findIndex((item) => item.id === point.id)
-          const current = route.findIndex((item) => item.id === rover.fromId)
+          const index = drive.findIndex((item) => item.id === point.id)
+          const current = drive.findIndex((item) => item.id === rover.fromId)
           return index <= current
         })
         .map((point) => `${point.x_cm},${point.y_cm}`)
@@ -47,35 +53,30 @@ export default function SandTableFigure({
   return (
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Sand table plan, 105 by 80 centimeters" preserveAspectRatio="xMidYMid meet">
       <rect x="0" y="0" width={width} height={height} fill="#fbfcfe" stroke="#17243b" strokeWidth="0.7" />
-      <clipPath id={clipId}>
-        <rect x={inner.origin_x_cm} y={inner.origin_y_cm} width={inner.width} height={inner.height} />
-      </clipPath>
-      <g clipPath={`url(#${clipId})`}>
-        {Array.from({ length: Math.floor(width / GRID_SPACING_CM) + 1 }, (_, index) => (
-          <line key={`x-${index}`} x1={index * GRID_SPACING_CM} y1={0} x2={index * GRID_SPACING_CM} y2={height} stroke="#d5deea" strokeWidth="0.28" />
-        ))}
-        {Array.from({ length: Math.floor(height / GRID_SPACING_CM) + 1 }, (_, index) => (
-          <line key={`y-${index}`} x1={0} y1={index * GRID_SPACING_CM} x2={width} y2={index * GRID_SPACING_CM} stroke="#d5deea" strokeWidth="0.28" />
-        ))}
-      </g>
-      {Array.from({ length: Math.floor(inner.width / 20) + 1 }, (_, index) => {
-        const x = inner.origin_x_cm + index * 20
-        return <text key={`lx-${index}`} x={x + 0.4} y={inner.origin_y_cm + 2.4} fontSize="1.8" fill="#64748b">{Math.round(x)}</text>
+      {boxes.map((cell) => {
+        const site = siteInCell(geometry, cell.row, cell.col)
+        const heat = scores.get(site ?? '') ?? scores.get(cell.id)
+        const sampled = Boolean(heat && heat.sample_count > 0)
+        const stoppedHere = rover != null && !rover.moving && rover.fromId === cell.id
+        const selected = selectedId === cell.id || selectedId === site
+        return (
+          <g key={cell.id} onClick={() => onSelect(site ?? cell.id)} style={{ cursor: 'pointer' }}>
+            <title>{`${cell.id}${site ? ` · ${site}` : ''} · border ${cell.border} cm`}</title>
+            <rect
+              x={cell.originX}
+              y={cell.originY}
+              width={cell.width}
+              height={cell.height}
+              fill={sampled ? heatColor(heat?.score ?? null) : stoppedHere ? '#dbeafe' : '#f4f7fb'}
+              fillOpacity={sampled ? 0.82 : 1}
+              stroke={stoppedHere || selected ? '#1d4ed8' : '#64748b'}
+              strokeWidth={stoppedHere || selected ? 0.7 : 0.4}
+            />
+            <text x={cell.originX + 1.2} y={cell.originY + 3.4} fontSize="2.6" fill="#334155">{cell.visit}</text>
+            <text x={cell.x_cm} y={cell.y_cm - 1.6} textAnchor="middle" fontSize="2.4" fill="#17243b">{site ?? cell.id}</text>
+          </g>
+        )
       })}
-      {Array.from({ length: Math.floor(inner.height / 20) + 1 }, (_, index) => {
-        const y = inner.origin_y_cm + index * 20
-        return <text key={`ly-${index}`} x={inner.origin_x_cm + 0.5} y={y - 0.4} fontSize="1.8" fill="#64748b">{Math.round(y)}</text>
-      })}
-      <rect
-        x={inner.origin_x_cm}
-        y={inner.origin_y_cm}
-        width={inner.width}
-        height={inner.height}
-        fill="none"
-        stroke="#2563eb"
-        strokeDasharray="1.4 0.8"
-        strokeWidth="0.35"
-      />
       {showBoxes
         ? geometry.boxes.map((box) => (
             <g key={box.id}>
@@ -103,34 +104,24 @@ export default function SandTableFigure({
           strokeWidth="0.7"
         />
       ))}
-      {planPath ? <polyline points={planPath} fill="none" stroke="#0f766e" strokeWidth="0.55" /> : null}
+      {planPath && !snapshot?.scan_route?.length ? <polyline points={planPath} fill="none" stroke="#0f766e" strokeWidth="0.55" /> : null}
       {traveled ? <polyline points={traveled} fill="none" stroke="#2563eb" strokeWidth="0.55" /> : null}
-      {geometry.measurement_points.map((point) => {
-        const heat = scores.get(point.id)
-        const sampled = Boolean(heat && heat.sample_count > 0)
-        return (
-          <g key={point.id} onClick={() => onSelect(point.id)} style={{ cursor: 'pointer' }}>
-            <title>{`${point.id} ${point.x_cm} cm, ${point.y_cm} cm`}</title>
-            <circle
-              cx={point.x_cm}
-              cy={point.y_cm}
-              r={selectedId === point.id ? 2.4 : sampled ? 1.8 : 1.15}
-              fill={cells.get(point.id)?.state === 'blocked' ? '#7f1d1d' : sampled ? heatColor(heat?.score ?? null) : '#c5ced8'}
-              stroke={cells.get(point.id)?.state === 'blocked' ? '#fecaca' : '#ffffff'}
-              strokeWidth="0.35"
-            />
-            <text x={point.x_cm + 2.2} y={point.y_cm + 0.8} fontSize="2.1" fill="#334155">{point.id}</text>
-          </g>
-        )
-      })}
+      {rover && !rover.moving && echo ? (
+        <g>
+          <line x1={rover.x} y1={rover.y} x2={echo.x} y2={echo.y} stroke="#7c3aed" strokeWidth="0.28" strokeDasharray="0.7 0.45" />
+          <circle cx={echo.x} cy={echo.y} r="1.35" fill="#ddd6fe" stroke="#7c3aed" strokeWidth="0.35">
+            <title>{`Ultrasonic return ${snapshot?.ultrasonic?.distance_cm} cm`}</title>
+          </circle>
+        </g>
+      ) : null}
       {rover ? (
         <g>
           <g transform={`translate(${rover.x} ${rover.y}) rotate(${rover.heading})`}>
             <polygon points="3.1,0 -1.7,1.35 -1.1,0 -1.7,-1.35" fill="#1d4ed8" stroke="#ffffff" strokeWidth="0.25" />
           </g>
-          {rover.moving ? (
-            <text x={rover.x + 2.6} y={rover.y - 2.4} fontSize="2.2" fill="#1d4ed8">{`to ${rover.toId}`}</text>
-          ) : null}
+          <text x={rover.x + 2.6} y={rover.y - 2.4} fontSize="2.2" fill="#1d4ed8">
+            {rover.moving ? `to ${rover.toId}` : liveTrack ? rover.fromId : snapshot?.mission_phase === 'SIGNS' ? 'signs' : snapshot?.mission_phase === 'VITALS' ? 'vitals' : snapshot?.mission_phase === 'TURN' ? 'turn' : ''}
+          </text>
         </g>
       ) : null}
     </svg>
@@ -160,4 +151,29 @@ function useRunElapsed(snapshot: OperationsSnapshot | null): number {
   }, [active])
 
   return elapsed
+}
+
+function useLegElapsed(leg: OperationsSnapshot['rover_leg']): number | undefined {
+  const key = leg ? `${leg.from_id}:${leg.to_id}:${leg.duration_ms}` : ''
+  const stamp = useRef({ base: leg?.elapsed_ms ?? 0, at: performance.now() })
+  const [elapsed, setElapsed] = useState(leg?.elapsed_ms ?? 0)
+
+  useEffect(() => {
+    if (!leg) return
+    stamp.current = { base: leg.elapsed_ms, at: performance.now() }
+    setElapsed(leg.elapsed_ms)
+  }, [leg, key])
+
+  useEffect(() => {
+    if (!key) return
+    let frame = 0
+    const loop = () => {
+      setElapsed(stamp.current.base + (performance.now() - stamp.current.at))
+      frame = requestAnimationFrame(loop)
+    }
+    frame = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(frame)
+  }, [key])
+
+  return leg ? elapsed : undefined
 }

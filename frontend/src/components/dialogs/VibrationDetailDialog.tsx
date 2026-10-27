@@ -1,5 +1,6 @@
 import type { OperationsSnapshot } from '../../types/operations'
 import { panelState } from '../live/format'
+import SignalScope from '../live/SignalScope'
 import DetailDialog, { FactGrid } from './DetailDialog'
 
 export default function VibrationDetailDialog({
@@ -12,8 +13,10 @@ export default function VibrationDetailDialog({
   onClose: () => void
 }) {
   const piezo = snapshot?.piezo
+  const wave = snapshot?.piezo_waveform ?? []
   return (
     <DetailDialog open={open} onClose={onClose} title="Piezo contact" state={panelState(piezo?.source_mode)}>
+      <SignalScope samples={wave} label="Piezo contact waveform in ADC counts" color="#b45309" large />
       <FactGrid
         rows={[
           ['Peak', piezo ? `${piezo.peak_adc_counts} ${piezo.unit}` : '—'],
@@ -25,8 +28,8 @@ export default function VibrationDetailDialog({
           ['Source', piezo?.source_mode ?? 'unavailable'],
         ]}
       />
-      <p className="quiet-line">The inventory has one piezo disk, assigned as a stationary surface-contact receiver. It is not a second buried reference and it is not an accelerometer. Counts are not g.</p>
-      <p className="quiet-line">Couple the disk to the plywood at a stop, with a protective layer and a conditioned ADC input. A loose disk on the chassis is not a sand measurement. The snapshot has no ADC time series until a driver sends one.</p>
+      <p className="quiet-line">The trace is the ADC window for this stop. A knock rings down. A quiet contact stays small. Counts are not acceleration in g.</p>
+      <p className="quiet-line">Couple the disk to the plywood at a stop. A live PIEZO line with samples fills this same trace.</p>
     </DetailDialog>
   )
 }

@@ -1,19 +1,22 @@
 import type { OperationsSnapshot, TableGeometry } from '../../types/operations'
-import { heatColor, heatLabel } from './navigation'
+import { gridCells, heatColor, heatLabel, siteInCell } from './navigation'
 
 export default function PointIndex({
   geometry,
   snapshot,
   selectedId,
+  caption,
   onSelect,
 }: {
   geometry: TableGeometry
   snapshot: OperationsSnapshot | null
   selectedId?: string
+  caption?: string
   onSelect?: (pointId: string) => void
 }) {
   return (
     <div className="index-wrap">
+      {caption ? <p className="map-summary" title={caption}>{caption}</p> : null}
       <p className="legend-line">
         <span><i className="swatch" style={{ background: '#c83a3a' }} /> Strong case</span>
         <span><i className="swatch" style={{ background: '#b7791f' }} /> Moderate</span>
@@ -23,24 +26,26 @@ export default function PointIndex({
       <table className="index-table">
         <thead>
           <tr>
-            <th>Point</th>
-            <th>X cm</th>
-            <th>Y cm</th>
-            <th>Index</th>
+            <th>Cell</th>
+            <th>Site</th>
+            <th>Border</th>
+            <th>Reading</th>
           </tr>
         </thead>
         <tbody>
-          {geometry.measurement_points.map((point) => {
-            const heat = snapshot?.heatmap_points.find((item) => item.point_id === point.id)
+          {gridCells(geometry).map((cell) => {
+            const site = siteInCell(geometry, cell.row, cell.col)
+            const heat = snapshot?.heatmap_points.find((item) => item.point_id === (site ?? cell.id))
             const score = heat && heat.sample_count > 0 ? heat.score : null
+            const label = site ?? cell.id
             return (
-              <tr key={point.id} onClick={() => onSelect?.(point.id)} style={{ cursor: onSelect ? 'pointer' : undefined }}>
+              <tr key={cell.id} onClick={() => onSelect?.(label)} style={{ cursor: onSelect ? 'pointer' : undefined }}>
                 <td>
                   <span className="swatch" style={{ background: heatColor(score) }} />
-                  {selectedId === point.id ? `${point.id} · selected` : point.id}
+                  {selectedId === label ? `${cell.visit} · selected` : cell.visit}
                 </td>
-                <td>{point.x_cm.toFixed(1)}</td>
-                <td>{point.y_cm.toFixed(1)}</td>
+                <td>{site ?? '—'}</td>
+                <td>{cell.border.toFixed(1)} cm</td>
                 <td>{heatLabel(score)}</td>
               </tr>
             )

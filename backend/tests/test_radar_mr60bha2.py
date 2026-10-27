@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.drivers.radar_mr60bha2 import (
     _checksum,
     apply_esphome_line,
+    apply_plain_radar_line,
     blank_reading,
     parse_binary_frames,
     parse_radar_line,
@@ -51,6 +52,30 @@ def test_esphome_log_lines_fill_the_same_observation() -> None:
     assert observation["num_targets"] == 1
     assert observation["illuminance_lx"] == 180
     assert observation["source_mode"] == "live"
+
+
+def test_plain_demo_lines_fill_breath_heart_and_presence() -> None:
+    reading = blank_reading()
+    assert apply_plain_radar_line(reading, "total_phase: 0.00\tbreath_phase: 1.20\theart_phase: 0.40") is True
+    assert apply_plain_radar_line(reading, "breath_rate: 15.50") is True
+    assert apply_plain_radar_line(reading, "heart_rate: 72.00") is True
+    assert apply_plain_radar_line(reading, "distance: 0.80") is True
+    observation = reading_to_observation(reading, "live", "seeed_mr60bha2_text")
+    assert observation["breath_rate_bpm"] == 15.5
+    assert observation["heart_rate_bpm"] == 72.0
+    assert observation["distance_m"] == 0.8
+    assert observation["human_presence"] is True
+    assert observation["breath_phase"] == 1.2
+
+
+def test_plain_zero_rates_mean_no_one_is_locked() -> None:
+    reading = blank_reading()
+    assert apply_plain_radar_line(reading, "breath_rate: 0.00") is True
+    assert apply_plain_radar_line(reading, "heart_rate: 0.00") is True
+    observation = reading_to_observation(reading, "live", "seeed_mr60bha2_text")
+    assert observation["human_presence"] is False
+    assert observation["breath_rate_bpm"] == 0.0
+    assert observation["heart_rate_bpm"] == 0.0
 
 
 def test_binary_breath_frame_matches_the_module_layout() -> None:

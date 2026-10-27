@@ -9,7 +9,7 @@ import numpy as np
 
 from app.audio.detector import AcousticCalibration, EventTracker
 from app.persistence.store import data_dir
-from app.services.feature_extraction import HopAnalyzer, StreamingBandpass, envelope_dbfs
+from app.services.feature_extraction import HopAnalyzer, StreamingBandpass, display_waveform, envelope_dbfs
 from app.services.fusion import gcc_phat_delays
 
 _LISTEN_LOCK = threading.Lock()
@@ -84,6 +84,11 @@ class AcousticEngine:
             return []
         return envelope_dbfs(self._recent[-1600:].tolist())
 
+    def waveform(self) -> list[float]:
+        if self._recent.size == 0:
+            return []
+        return display_waveform(self._recent[-1600:].tolist())
+
     def _remember(self, filtered: np.ndarray) -> None:
         loudest = int(np.argmax(np.sqrt(np.mean(filtered * filtered, axis=0))))
         self._recent = np.concatenate((self._recent, filtered[:, loudest]))
@@ -152,15 +157,15 @@ def _listen_loop(report: dict) -> None:
 
     engine = AcousticEngine(load_calibration(), source_mode="live")
     _mark_device(report, streaming=True)
-    _publish(engine.listening_view(), engine.envelope(), None)
+    _publish(engine.listening_view(), engine.envelope(), None, engine.waveform())
     try:
         for block in iter_mic_blocks(_STOP):
             events = engine.push(block)
             if events:
                 for event in events:
-                    _publish(event, engine.envelope(), event["class"])
+                    _publish(event, engine.envelope(), event["class"], engine.waveform())
             else:
-                _publish(engine.listening_view(), engine.envelope(), None)
+                _publish(engine.listening_view(), engine.envelope(), None, engine.waveform())
     except Exception as exc:
         failed = dict(report)
         failed["state"] = "disconnected"
@@ -168,11 +173,11 @@ def _listen_loop(report: dict) -> None:
         _mark_device(failed, streaming=False)
     else:
         for event in engine.finish():
-            _publish(event, engine.envelope(), event["class"])
+            _publish(event, engine.envelope(), event["class"], engine.waveform())
         _mark_device(report, streaming=False)
 
 
-def _publish(acoustic: dict, envelope: list[float], summary: str | None) -> None:
+def _publish(acoustic: dict, envelope: list[float], summary: str | None, waveform: list[float] | None = None) -> None:
     from app.services.clock import utc_now
     from app.state import get_state
 
@@ -180,6 +185,7 @@ def _publish(acoustic: dict, envelope: list[float], summary: str | None) -> None
     public = {key: value for key, value in acoustic.items() if key != "frame"}
     state.acoustic = public
     state.acoustic_envelope = envelope
+    state.acoustic_waveform = list(waveform or [])
     if summary and public.get("class") in {"knock", "scratch/scrape", "periodic_tapping"}:
         state.impulse = public
         state.impulse_envelope = envelope

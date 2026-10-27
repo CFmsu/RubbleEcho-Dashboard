@@ -12,7 +12,7 @@ DEVICE_CATALOG = [
     ("hc_sr04", "ultrasonic", "disconnected", "No live obstacle samples."),
     ("xvf3800", "microphone_array", "disconnected", "USB audio device is not opened."),
     ("piezo", "contact_vibration", "disconnected", "No ADC samples. Assigned role: stationary surface contact receiver."),
-    ("solenoid", "knock_source", "disconnected", "Output locked. Default disarmed."),
+    ("solenoid", "knock_source", "disconnected", "Arduino pin A0. Disarmed until a knock is confirmed."),
     ("bluetooth", "optional_manual_link", "unsupported", "Module type is not verified. Not an autonomy link."),
     ("nebius_nvidia", "advisory_model", "disconnected", "No verified live NVIDIA call."),
 ]
@@ -72,10 +72,13 @@ class AppState:
         self.piezo = None
         self.pose = None
         self.pose_trail: list[dict] = []
+        self.motor_tracking = False
+        self.rover_leg = None
         self.solenoid = SolenoidController()
         self.events: list[dict] = []
         self.samples: list[dict] = []
         self.heatmap: list[dict] = []
+        self.scan_route: list[dict] = []
         self.reasoning = None
         self.search_plan = None
         self.scene_note = None
@@ -92,7 +95,11 @@ class AppState:
         self.fixture_name = None
         self.malformed_radar = 0
         self.acoustic_envelope: list[float] = []
+        self.acoustic_waveform: list[float] = []
         self.impulse_envelope: list[float] = []
+        self.piezo_waveform: list[float] = []
+        self.rover_trace: dict | None = None
+        self.blocked_cells: list[str] = []
         self.calibration = {
             "marker_count": 0,
             "homography_valid": False,

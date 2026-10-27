@@ -20,7 +20,7 @@ class CommandBody(BaseModel):
 
 
 class KnockBody(BaseModel):
-    width_ms: int = Field(default=40, ge=1, le=5000)
+    width_ms: int = Field(default=200, ge=1, le=5000)
     consent: bool = False
     rover_moving: bool = False
     now_ms: int = 0
@@ -51,8 +51,8 @@ async def mission_halt() -> dict:
 
 
 @router.get("/api/simulation/camera.png")
-async def simulation_camera() -> Response:
-    path = media_file("camera")
+async def simulation_camera(point: str | None = None) -> Response:
+    path = media_file("camera", point)
     if path is None:
         raise HTTPException(status_code=404, detail={"error": "no simulation frame"})
     return Response(content=path.read_bytes(), media_type="image/png")

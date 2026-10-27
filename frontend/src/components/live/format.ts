@@ -51,6 +51,8 @@ export function nvidiaLive(snapshot: OperationsSnapshot | null): boolean {
 }
 
 export function evidenceHeadline(snapshot: OperationsSnapshot | null): string {
+  const narrative = snapshot?.reasoning?.narrative?.trim()
+  if (narrative) return narrative.split(/(?<=\.)\s/)[0] || narrative
   const label = snapshot?.impulse?.class || snapshot?.acoustic?.class
   if (!label || label === 'silence' || label === 'ambient' || label === 'unknown') return 'No classified event'
   if (label === 'knock' || label === 'tap') return 'Knock candidate'

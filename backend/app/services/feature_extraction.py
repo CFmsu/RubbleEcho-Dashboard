@@ -31,6 +31,21 @@ def spectral_centroid_hz(samples: list[float], sample_rate: float) -> float | No
     return weighted / total
 
 
+def display_waveform(samples: list[float], buckets: int = 96) -> list[float]:
+    """Peak-picked trace for the scope. The same list is filled by a clip or a live window."""
+    if not samples:
+        return []
+    buckets = max(1, buckets)
+    size = max(1, math.ceil(len(samples) / buckets))
+    drawn: list[float] = []
+    for start in range(0, len(samples), size):
+        chunk = samples[start : start + size]
+        drawn.append(round(max(chunk, key=lambda value: abs(value)), 4))
+        if len(drawn) >= buckets:
+            break
+    return drawn
+
+
 def envelope_dbfs(samples: list[float], buckets: int = 40) -> list[float]:
     """Digital envelope for drawing. Exact zeros use a -80 dBFS display floor."""
     if not samples:

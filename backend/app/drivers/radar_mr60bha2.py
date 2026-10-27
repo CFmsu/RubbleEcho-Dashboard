@@ -155,6 +155,48 @@ def blank_reading() -> dict:
     }
 
 
+def apply_plain_radar_line(reading: dict, line: str) -> bool:
+    """Read the MR60BHA2 demo printout: `breath_rate: 0.00` and tab-separated phase lines."""
+    import re
+
+    pairs = re.findall(r"([A-Za-z][A-Za-z_ ]{0,40}):\s*(-?\d+(?:\.\d+)?)", line)
+    if not pairs:
+        return False
+    changed = False
+    saw_rate = False
+    for raw_name, raw_value in pairs:
+        name = "_".join(raw_name.lower().split())
+        value = float(raw_value)
+        if name in {"breath_rate", "respiratory_rate", "respiration_rate"}:
+            reading["breath_rate_bpm"] = value
+            saw_rate = True
+        elif name in {"heart_rate", "heart"}:
+            reading["heart_rate_bpm"] = value
+            saw_rate = True
+        elif name == "breath_phase":
+            reading["breath_phase"] = value
+        elif name == "heart_phase":
+            reading["heart_phase"] = value
+        elif name == "total_phase":
+            reading["total_phase"] = value
+        elif name == "distance_cm":
+            reading["distance_m"] = value / 100.0
+        elif name in {"distance", "distance_m", "target_distance"}:
+            reading["distance_m"] = value / 100.0 if value > 15 else value
+        else:
+            continue
+        changed = True
+    if not changed:
+        return False
+    if saw_rate or reading.get("distance_m") is not None:
+        breath = float(reading.get("breath_rate_bpm") or 0)
+        heart = float(reading.get("heart_rate_bpm") or 0)
+        distance = float(reading.get("distance_m") or 0)
+        reading["human_presence"] = breath > 0.5 or heart > 0.5 or distance > 0.05
+        reading["num_targets"] = 1 if reading["human_presence"] else 0
+    return True
+
+
 def apply_esphome_line(reading: dict, line: str) -> bool:
     """Fold one ESPHome log line into a reading. Returns True when a field changes."""
     import re

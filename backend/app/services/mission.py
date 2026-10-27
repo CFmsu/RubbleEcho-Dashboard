@@ -8,6 +8,7 @@ from app.config.geometry import known_point_ids, load_geometry
 from app.config.settings import ai_enabled
 from app.drivers.camera_pi import find_camera
 from app.persistence.store import load_trial, save_trial
+from app.services.briefing import align_narrative
 from app.services.export_trial import build_export
 from app.services.fusion import local_assessment
 from app.services.policy import on_cloud_failure, on_link_lost, vet_command
@@ -76,12 +77,16 @@ def estop(reason: str = "operator_estop") -> dict:
     from app.services.sim_run import cancel_run
 
     cancel_run()
+    from app.drivers.motor_link import transmit
+
+    transmit("S")
     state = get_state()
     state.run_active = False
     state.scan_stage = "IDLE"
     state.phase = "ESTOP"
     state.safety = "ESTOP"
     state.solenoid.disarm()
+    _solenoid_stop()
     if state.legacy_active:
         import simulation
 
@@ -89,7 +94,7 @@ def estop(reason: str = "operator_estop") -> dict:
     event = state.add_event(
         device="safety",
         sensor="safety",
-        summary=f"STOP {reason}. Solenoid disarmed. Hardware output remains locked.",
+        summary=f"STOP {reason}. Solenoid disarmed. Pin A0 driven low when the Arduino port is open.",
         quality="safety",
         captured_at_utc=None,
         value=None,
@@ -105,11 +110,15 @@ def estop(reason: str = "operator_estop") -> dict:
 
 
 def hold(reason: str = "operator_stop") -> dict:
+    from app.drivers.motor_link import transmit
+
+    transmit("S")
     state = get_state()
     if state.phase != "ESTOP":
         state.safety = "STOP"
         state.phase = "FAULT"
     state.solenoid.disarm()
+    _solenoid_stop()
     if state.legacy_active:
         import simulation
 
@@ -135,6 +144,7 @@ def apply_link_lost() -> dict:
         state.safety = decision["safety"]
         state.phase = decision["phase"]
         state.solenoid.disarm()
+        _solenoid_stop()
         state.add_event(
             device="safety",
             sensor="safety",
@@ -162,6 +172,7 @@ def submit_command(command: dict) -> dict:
     state.command_log.append({"command": command, "decision": decision})
     if decision.get("disarm") or decision.get("hard_stop"):
         state.solenoid.disarm()
+        _solenoid_stop()
         state.safety = "STOP"
         if state.phase != "ESTOP":
             state.phase = "FAULT"
@@ -184,22 +195,66 @@ def submit_command(command: dict) -> dict:
 
 
 def knock_request(width_ms: int, consent: bool, rover_moving: bool, now_ms: int) -> dict:
+    from app.drivers.solenoid_link import transmit
+
     state = get_state()
     result = state.solenoid.request_pulse(width_ms, rover_moving, now_ms, consent)
+    link = {"sent": False, "port": None, "command": "KNOCK", "reason": "not_sent"}
+    if result["accepted"]:
+        link = transmit("KNOCK")
+        _mark_solenoid(link)
+        if link["sent"]:
+            result["reason"] = "sent"
     if result["state"] == "FAULT":
         state.safety = "STOP"
         state.phase = "FAULT"
+    result["link"] = link
+    if link["sent"]:
+        summary = (
+            f"Knock sent to {link['port']}. Pin A0, three taps, "
+            f"{state.solenoid.PULSE_MS} ms on and {state.solenoid.GAP_MS} ms off."
+        )
+        quality = "transmitted"
+    else:
+        summary = f"Knock request {result['reason']}."
+        quality = "not_transmitted"
     state.add_event(
         device="solenoid",
         sensor="solenoid",
-        summary=f"Knock request {result['reason']}.",
-        quality="output_locked",
+        summary=summary,
+        quality=quality,
         captured_at_utc=None,
         value=width_ms,
         unit="ms",
     )
     _sync_trial(state)
     return result
+
+
+def _solenoid_stop() -> dict:
+    from app.drivers.solenoid_link import transmit
+
+    link = transmit("STOP")
+    if link["sent"]:
+        _mark_solenoid(link)
+    return link
+
+
+def _mark_solenoid(link: dict) -> None:
+    state = get_state()
+    for device in state.devices:
+        if device["device_id"] != "solenoid":
+            continue
+        device["firmware"] = "arduino_solenoid"
+        device["driver"] = "pyserial"
+        device["last_seen_utc"] = None
+        if link.get("sent"):
+            device["state"] = "connected"
+            device["source_mode"] = "live"
+            device["quality"] = "serial_command"
+            device["error"] = None
+        else:
+            device["error"] = link.get("reason") or "arduino_not_found"
 
 
 def arm_solenoid(consent: bool) -> dict:
@@ -222,14 +277,21 @@ def request_reason() -> dict:
                 "Model id is configured, but RUBBLEECHO_AI_LIVE is not 1, so no Token Factory call was made. "
                 + result["summary"]
             )
-        state.reasoning = result
+        state.reasoning = _spoken(result)
         _sync_trial(state)
-        return {"ok": True, "reasoning": result, "nvidia_online": False}
+        return {"ok": True, "reasoning": state.reasoning, "nvidia_online": False}
+    known = set(known_point_ids())
+    for cell in state.scan_route or []:
+        known.add(str(cell.get("id")))
+    for point in state.heatmap or []:
+        if point.get("point_id"):
+            known.add(str(point["point_id"]))
     live = reason_live(
         _evidence(state),
         {event["event_id"] for event in state.events},
-        known_point_ids(),
+        known,
         state.search_plan,
+        _cell_briefs(state),
     )
     return apply_model_result(live)
 
@@ -241,11 +303,12 @@ def apply_model_result(live: dict) -> dict:
         state.safety = failure["safety"]
         state.phase = failure["phase"]
         state.solenoid.disarm()
+        _solenoid_stop()
         result = local_assessment(state.events, state.heatmap)
         result["validation_status"] = failure["reason"]
         result["unknowns"] = [failure["reason"], *result["unknowns"]]
         result["nvidia_online"] = False
-        state.reasoning = result
+        state.reasoning = _spoken(result)
         state.add_event(
             device="nebius_nvidia",
             sensor="reasoning",
@@ -257,9 +320,23 @@ def apply_model_result(live: dict) -> dict:
         )
         _sync_trial(state)
         return {"ok": False, "kind": failure["reason"], "reasoning": result, "nvidia_online": False}
-    state.reasoning = live["result"]
+    state.reasoning = _spoken(live["result"])
     _sync_trial(state)
-    return {"ok": True, "reasoning": live["result"], "nvidia_online": True}
+    return {"ok": True, "reasoning": state.reasoning, "nvidia_online": True}
+
+
+def _spoken(result: dict) -> dict:
+    point = None
+    recommendation = result.get("recommendation")
+    if isinstance(recommendation, dict):
+        point = recommendation.get("point_id")
+    heatmap = list(get_state().heatmap or [])
+    result["narrative"] = align_narrative(
+        result.get("narrative") if isinstance(result.get("narrative"), str) else None,
+        heatmap,
+        str(point) if point else None,
+    )
+    return result
 
 
 def annotate(trial_id: str, fields: dict) -> dict | None:
@@ -349,7 +426,37 @@ def _evidence(state) -> list[dict]:
                 "mode": event.get("mode"),
             }
         )
-    return rows[-40:]
+    by_site: dict[str, dict] = {}
+    order: list[str] = []
+    for row in rows:
+        site = str(row.get("site_id") or row["event_id"])
+        previous = by_site.get(site)
+        if previous is None:
+            order.append(site)
+            by_site[site] = row
+        elif row.get("sensor") == "acoustic" or previous.get("sensor") != "acoustic":
+            by_site[site] = row
+    if by_site:
+        return [by_site[site] for site in order][-12:]
+    return rows[-12:]
+
+
+def _cell_briefs(state) -> list[dict]:
+    briefs = []
+    for point in state.heatmap or []:
+        readings = point.get("readings") if isinstance(point.get("readings"), dict) else {}
+        briefs.append(
+            {
+                "point_id": point.get("point_id"),
+                "sound": readings.get("sound"),
+                "radar_presence": readings.get("radar_presence"),
+                "distance_m": readings.get("distance_m"),
+                "ultrasonic_cm": readings.get("ultrasonic_cm"),
+                "reading_score": point.get("score"),
+            }
+        )
+    briefs.sort(key=lambda item: -(item["reading_score"] or 0))
+    return briefs
 
 
 def _trial_shell(trial_id: str, mode: str) -> dict:

@@ -27,7 +27,8 @@ export default function RadarOverview({
 }) {
   const radar = snapshot?.radar ?? null
   const running = Boolean(snapshot?.run_active)
-  const paused = !running && (!radar || radar.stale || radar.source_mode === 'unavailable')
+  const liveFeed = radarRunning(snapshot)
+  const paused = !liveFeed && (!radar || radar.stale || radar.source_mode === 'unavailable')
   const state = running ? 'SIMULATION' : panelState(radar?.source_mode, Boolean(radar?.stale))
   const presence = radar ? reading(radar.human_presence) : '—'
   const distance = radar?.distance_m == null ? '—' : `${radar.distance_m} m`
@@ -56,7 +57,9 @@ export default function RadarOverview({
           distanceM={radar?.distance_m}
           presence={radar?.human_presence}
           targets={radar?.num_targets}
-          running={radarRunning(snapshot)}
+          breath={radar?.breath_rate_bpm}
+          heart={radar?.heart_rate_bpm}
+          running={liveFeed}
         />
       </div>
       <p className="scope-readout" title={line}>{line}</p>

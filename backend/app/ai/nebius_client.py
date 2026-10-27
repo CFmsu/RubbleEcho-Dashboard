@@ -53,9 +53,8 @@ def interpret_model_text(
     latency_ms: float,
     live_call: bool,
 ) -> tuple[dict | None, str | None]:
-    try:
-        payload = json.loads(payload_text)
-    except json.JSONDecodeError:
+    payload = _load_object(payload_text)
+    if payload is None:
         return None, "invalid_json"
     result, error = validate_reasoning(payload, known_event_ids, known_points)
     if error or result is None:
@@ -78,12 +77,13 @@ def reason_live(
     known_event_ids: set[str],
     known_points: set[str],
     search_plan: dict | None = None,
+    cells: list[dict] | None = None,
 ) -> dict:
     """Call Token Factory. Tests should not use this; they call interpret_model_text."""
     model_id = nebius_model()
     reply = _chat(
         model_id,
-        build_messages(evidence, sorted(known_points), search_plan),
+        build_messages(evidence, sorted(known_points), search_plan, cells),
         max_tokens=4000,
         timeout=45,
     )
@@ -272,6 +272,27 @@ def healthcheck() -> dict:
         "model_id": model_id,
         "latency_ms": round((time.perf_counter() - started) * 1000, 1),
     }
+
+
+def _load_object(text: str) -> dict | None:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`")
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].strip()
+    try:
+        payload = json.loads(cleaned)
+    except json.JSONDecodeError:
+        extracted = _json_object(text)
+        if not extracted:
+            return None
+        try:
+            payload = json.loads(extracted)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
 
 
 def _json_object(text: str) -> str:

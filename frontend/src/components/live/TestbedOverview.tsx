@@ -2,7 +2,6 @@ import { useState } from 'react'
 import Panel from '../layout/Panel'
 import type { OpenDialog } from '../../types/dialog'
 import type { OperationsSnapshot, TableGeometry } from '../../types/operations'
-import PointIndex from './PointIndex'
 import SandTableFigure from './SandTableFigure'
 import { roverFix } from './navigation'
 import { panelState, sampledCount } from './format'
@@ -23,14 +22,15 @@ export default function TestbedOverview({
   const [selectedId, setSelectedId] = useState('')
   const sampled = sampledCount(snapshot)
   const plan = snapshot?.search_plan
-  const rover = geometry && !plan ? roverFix(geometry, snapshot) : null
-  const pose = plan
-    ? `virtual line · ${plan.path.length} cells left · look ${plan.look}`
-    : rover
-      ? rover.moving ? `rover moving toward ${rover.toId}` : `rover at ${rover.fromId}`
+  const rover = geometry ? roverFix(geometry, snapshot) : null
+  const total = snapshot?.scan_route?.length || geometry?.measurement_points.length || 0
+  const pose = rover
+    ? rover.moving ? `rover moving toward ${rover.toId}` : `rover at ${rover.fromId}`
+    : plan
+      ? `virtual line · ${plan.path.length} cells · look ${plan.look}`
       : 'rover pose unavailable'
   const cover = geometry ? `${geometry.sand.thick.cover_above_lids_cm} cm nominal cover` : 'cover not loaded'
-  const summary = `${cover} · ${sampled}/6 sampled points · ${pose}`
+  const summary = `${cover} · ${sampled}/${total} grid squares · ${pose}`
 
   return (
     <Panel
@@ -43,8 +43,14 @@ export default function TestbedOverview({
     >
       {error ? <p className="quiet-line">{error}</p> : null}
       {!error && !geometry ? <p className="quiet-line">Loading table geometry…</p> : null}
+      <p className="intensity-key" aria-label="Four signal intensities">
+        <span><i className="swatch" style={{ background: '#c83a3a' }} /> Strong</span>
+        <span><i className="swatch" style={{ background: '#b7791f' }} /> Moderate</span>
+        <span><i className="swatch" style={{ background: '#16845d' }} /> Quiet</span>
+        <span><i className="swatch" style={{ background: '#8b98a8' }} /> Not sampled</span>
+      </p>
       {geometry ? (
-        <div className="map-frame">
+        <div className="map-frame" title={summary}>
           <SandTableFigure
             geometry={geometry}
             snapshot={snapshot}
@@ -55,11 +61,6 @@ export default function TestbedOverview({
               onOpen({ kind: 'map', pointId })
             }}
           />
-          <p className="map-summary" title={summary}>{summary}</p>
-          <PointIndex geometry={geometry} snapshot={snapshot} selectedId={selectedId} onSelect={(pointId) => {
-            setSelectedId(pointId)
-            onOpen({ kind: 'map', pointId })
-          }} />
         </div>
       ) : null}
     </Panel>

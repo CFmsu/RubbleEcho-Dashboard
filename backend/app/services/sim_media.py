@@ -45,18 +45,28 @@ def sample_png(title: str, accent: tuple[int, int, int]) -> bytes:
     return _png(width, height, rows)
 
 
+def _unit(index: int) -> float:
+    value = (index * 1103515245 + 12345) & 0x7FFFFFFF
+    return (value / 0x7FFFFFFF) * 2.0 - 1.0
+
+
 def sample_wav(kind: str) -> tuple[bytes, list[float]]:
+    """Half-second clip. A knock is a short ring, a scratch is grit, ambient is a low floor."""
     rate = 16000
     count = rate // 2
     samples: list[float] = []
     for index in range(count):
+        t = index / rate
         if kind == "knock":
-            value = 0.9 if 80 <= index <= 86 else 0.0
+            ring = math.exp(-index / 28.0) * math.sin(2.0 * math.pi * 1400.0 * t)
+            click = 0.95 if 64 <= index <= 70 else 0.0
+            value = click + ring * 0.85
         elif kind == "scratch":
-            value = 0.22 if 200 < index < 5000 else 0.0
+            grit = 0.22 + 0.16 * abs(_unit(index))
+            value = grit if 0.02 < t < 0.30 else 0.012 * _unit(index)
         else:
-            value = 0.01 * math.sin(index / 40.0)
-        samples.append(value)
+            value = 0.02 * _unit(index) + 0.01 * math.sin(2.0 * math.pi * 90.0 * t)
+        samples.append(max(-1.0, min(1.0, value)))
     buffer = BytesIO()
     with wave.open(buffer, "wb") as handle:
         handle.setnchannels(1)

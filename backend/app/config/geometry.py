@@ -75,3 +75,50 @@ def point_in_traversable(x_cm: float, y_cm: float, data: dict | None = None) -> 
         bounds["min_x"] <= x_cm <= bounds["max_x"]
         and bounds["min_y"] <= y_cm <= bounds["max_y"]
     )
+
+
+def search_lattice(data: dict | None = None) -> list[dict]:
+    """Three by three cells covering the inner rectangle.
+
+    Even rows run left to right and odd rows run right to left. Heading follows
+    the row, and border_cm is the clearance to that side of the table. The last
+    cell of a row is the short reading that turns the route the other way.
+    """
+    geometry = data or load_geometry()
+    inner = geometry["inner_cm"]
+    origin_x = float(inner["origin_x_cm"])
+    origin_y = float(inner["origin_y_cm"])
+    cell_w = float(inner["width"]) / 3.0
+    cell_h = float(inner["height"]) / 3.0
+    left = origin_x
+    right = origin_x + float(inner["width"])
+    cells: list[dict] = []
+    for row in range(3):
+        columns = range(3) if row % 2 == 0 else range(2, -1, -1)
+        heading = 0.0 if row % 2 == 0 else 180.0
+        for col in columns:
+            x_cm = round(origin_x + (col + 0.5) * cell_w, 1)
+            y_cm = round(origin_y + (row + 0.5) * cell_h, 1)
+            border = round((right - x_cm) if heading == 0.0 else (x_cm - left), 1)
+            cells.append(
+                {
+                    "id": f"r{row + 1}c{col + 1}",
+                    "x_cm": x_cm,
+                    "y_cm": y_cm,
+                    "row": row,
+                    "col": col,
+                    "heading_deg": heading,
+                    "border_cm": border,
+                    "site_id": _site_in_cell(geometry["measurement_points"], origin_x, origin_y, cell_w, cell_h, row, col),
+                }
+            )
+    return cells
+
+
+def _site_in_cell(points: list[dict], origin_x: float, origin_y: float, cell_w: float, cell_h: float, row: int, col: int) -> str | None:
+    for point in points:
+        point_col = math.floor((float(point["x_cm"]) - origin_x) / cell_w)
+        point_row = math.floor((float(point["y_cm"]) - origin_y) / cell_h)
+        if point_row == row and point_col == col:
+            return str(point["id"])
+    return None

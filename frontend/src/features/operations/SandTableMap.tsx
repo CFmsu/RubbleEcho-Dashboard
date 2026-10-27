@@ -96,12 +96,16 @@ export default function SandTableMap({ snapshot }: { snapshot: OperationsSnapsho
             <circle key={`trail-${index}`} cx={pose.x_cm} cy={pose.y_cm} r="0.7" fill="#93c5fd" />
           ) : null,
         )}
-        {geometry.measurement_points.map((point) => {
+        {(snapshot?.scan_route?.length
+          ? snapshot.scan_route.map((cell) => ({ id: cell.id, x_cm: cell.x_cm, y_cm: cell.y_cm }))
+          : geometry.measurement_points
+        ).map((point) => {
           const heat = points.get(point.id)
+          const named = !point.id.startsWith('x')
           return (
             <g key={point.id} onClick={() => setSelected(point.id)} style={{ cursor: 'pointer' }}>
-              <circle cx={point.x_cm} cy={point.y_cm} r={heat ? 2.2 : 1.2} fill={heatColor(heat?.score ?? null)} stroke="#ffffff" strokeWidth="0.3" />
-              <text x={point.x_cm + 2.4} y={point.y_cm + 1} fontSize="2.2" fill="#334155">{point.id}</text>
+              <circle cx={point.x_cm} cy={point.y_cm} r={heat ? 1.5 : 1.05} fill={heatColor(heat?.score ?? null)} stroke="#ffffff" strokeWidth="0.3" />
+              {named ? <text x={point.x_cm + 2.2} y={point.y_cm + 0.8} fontSize="2.1" fill="#334155">{point.id}</text> : null}
             </g>
           )
         })}

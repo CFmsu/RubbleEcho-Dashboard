@@ -1,10 +1,12 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { ExpandIcon } from '../layout/Panel'
 import type { OpenDialog } from '../../types/dialog'
 import type { DialogRequest } from '../../types/dialog'
 import type { OperationsSnapshot } from '../../types/operations'
+import EchoDiagram from './EchoDiagram'
 import { panelState } from './format'
-import { heartbeatPath, noteRange } from './rangeTrace'
+import { noteRange } from './rangeTrace'
+import SignalScope from './SignalScope'
 
 export default function SensorStrip({
   snapshot,
@@ -16,7 +18,10 @@ export default function SensorStrip({
   const ultrasonic = snapshot?.ultrasonic
   const acoustic = snapshot?.acoustic
   const piezo = snapshot?.piezo
-  const envelope = snapshot?.acoustic_envelope_dbfs ?? []
+  const waveform = snapshot?.acoustic_waveform ?? []
+  const vibration = snapshot?.piezo_waveform ?? []
+  const roverTrace = snapshot?.rover_trace
+  const listening = snapshot?.mission_phase === 'LISTEN'
   useEffect(() => {
     noteRange(ultrasonic?.distance_cm)
     const id = window.setInterval(() => noteRange(ultrasonic?.distance_cm), 450)
@@ -34,18 +39,18 @@ export default function SensorStrip({
         expandLabel="ultrasonic"
         request={{ kind: 'ultrasonic' }}
         onOpen={onOpen}
-        extra={<RangeSpark active={ultrasonic?.distance_cm != null} />}
+        extra={<EchoDiagram compact distanceCm={ultrasonic?.distance_cm ?? null} echoTimeout={Boolean(ultrasonic?.echo_timeout)} />}
       />
       <Strip
         title="Acoustic"
         state={panelState(acoustic?.source_mode)}
         value={acoustic?.rms_dbfs == null ? '—' : acoustic.rms_dbfs.toFixed(1)}
         unit={acoustic?.rms_dbfs == null ? '' : 'dBFS'}
-        detail={acoustic ? acoustic.class : 'No samples'}
+        detail={listening ? `Listening · ${acoustic?.class ?? 'no class'}` : acoustic ? acoustic.class : 'No samples'}
         expandLabel="acoustic"
         request={{ kind: 'audio' }}
         onOpen={onOpen}
-        extra={envelope.length > 0 ? <Envelope values={envelope} /> : null}
+        extra={<SignalScope samples={waveform} label="Acoustic waveform" />}
       />
       <Strip
         title="Vibration"
@@ -56,16 +61,18 @@ export default function SensorStrip({
         expandLabel="vibration"
         request={{ kind: 'vibration' }}
         onOpen={onOpen}
+        extra={<SignalScope samples={vibration} label="Piezo contact waveform" color="#b45309" />}
       />
       <Strip
         title="Rover"
-        state={snapshot?.pose?.valid ? panelState(snapshot.mode) : 'DISCONNECTED'}
-        value={snapshot?.run_active ? 'RUN' : snapshot?.mission_phase && snapshot.mission_phase !== 'IDLE' ? snapshot.mission_phase : 'IDLE'}
+        state={roverTrace ? panelState(roverTrace.source_mode) : snapshot?.pose?.valid ? panelState(snapshot.mode) : 'DISCONNECTED'}
+        value={listening ? 'LISTEN' : snapshot?.mission_phase === 'SIGNS' || snapshot?.mission_phase === 'VITALS' || snapshot?.mission_phase === 'TURN' ? snapshot.mission_phase : snapshot?.run_active ? 'RUN' : snapshot?.mission_phase && snapshot.mission_phase !== 'IDLE' ? snapshot.mission_phase : 'IDLE'}
         unit=""
-        detail={`Encoders — · ${snapshot?.solenoid.state ?? 'DISARMED'}`}
+        detail={roverTrace ? `L ${roverTrace.left_counts} · R ${roverTrace.right_counts}` : `Encoders — · ${snapshot?.solenoid.state ?? 'DISARMED'}`}
         expandLabel="rover"
         request={{ kind: 'rover' }}
         onOpen={onOpen}
+        extra={<SignalScope samples={roverTrace?.left ?? []} secondary={roverTrace?.right ?? []} label="Left and right encoder ticks" />}
       />
     </>
   )
@@ -109,41 +116,3 @@ function Strip({
   )
 }
 
-function RangeSpark({ active }: { active: boolean }) {
-  const pathRef = useRef<SVGPathElement>(null)
-  useEffect(() => {
-    if (!active || !pathRef.current) return
-    let frame = 0
-    const started = performance.now()
-    const loop = (now: number) => {
-      pathRef.current?.setAttribute('d', heartbeatPath((now - started) / 1000, 72, 28))
-      frame = requestAnimationFrame(loop)
-    }
-    frame = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(frame)
-  }, [active])
-  return (
-    <svg viewBox="0 0 72 28" className="pulse" role="img" aria-label="Live obstacle-distance pulse">
-      <path ref={pathRef} d={active ? heartbeatPath(0, 72, 28) : 'M0 16 L72 16'} fill="none" stroke={active ? '#16845d' : '#94a3b8'} strokeWidth="1.6" />
-    </svg>
-  )
-}
-
-function Envelope({ values }: { values: number[] }) {
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const span = Math.max(1, max - min)
-  const step = 100 / values.length
-  const path = values
-    .map((value, index) => {
-      const x = index * step
-      const y = 24 - ((value - min) / span) * 20
-      return `${index === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`
-    })
-    .join(' ')
-  return (
-    <svg viewBox="0 0 100 24" className="spark" role="img" aria-label="Acoustic envelope in dBFS">
-      <path d={path} fill="none" stroke="#2563eb" strokeWidth="1.4" />
-    </svg>
-  )
-}
