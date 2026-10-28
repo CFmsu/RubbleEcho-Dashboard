@@ -1046,10 +1046,11 @@ a.btn {
   justify-content: space-between;
   gap: 12px;
   padding: 16px 18px 22px;
-  touch-action: manipulation;
+  touch-action: none;
   user-select: none;
   background: #f3f5f8;
-  overflow: auto;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .remote-back {
@@ -1073,6 +1074,8 @@ a.btn {
 .remote-cross::after {
   content: "";
   position: absolute;
+  z-index: 0;
+  pointer-events: none;
   background: #fff;
   border-radius: 36px;
 }
@@ -1093,7 +1096,7 @@ a.btn {
 
 .remote-key {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   display: grid;
   place-items: center;
   margin: 0;
@@ -1102,6 +1105,7 @@ a.btn {
   background: transparent;
   color: #1d4ed8;
   border-radius: 36px;
+  touch-action: none;
 }
 
 .remote-key[data-place="up"] { top: 0; left: 32%; width: 36%; height: 32%; }
