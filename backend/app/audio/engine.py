@@ -212,10 +212,17 @@ def _listen_loop(report: dict) -> None:
 
 def _publish(acoustic: dict, envelope: list[float], summary: str | None, waveform: list[float] | None = None) -> None:
     from app.services.clock import utc_now
+    from app.services.mic_window import publish_allowed
     from app.state import get_state
 
+    if not publish_allowed():
+        return
     state = get_state()
     public = {key: value for key, value in acoustic.items() if key != "frame"}
+    from app.services.briefing import sound_category
+
+    label = public.get("class") if isinstance(public.get("class"), str) else None
+    public["sound_category"] = sound_category(label)
     state.acoustic = public
     state.acoustic_envelope = envelope
     state.acoustic_waveform = list(waveform or [])

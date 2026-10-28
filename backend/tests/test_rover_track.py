@@ -41,6 +41,39 @@ def test_reported_site_uses_the_surveyed_coordinate() -> None:
     assert state.pose["cell_id"] == "A_NEAR"
     assert state.pose["x_cm"] == 52.5
     assert state.pose["y_cm"] == 14.5
+    assert apply_rover_line(
+        'ACK {"device":"arduino_uno","status":"moving","from":"A_NEAR","to":"A_FAR","cm":25.0,"ms":1125}'
+    )
+    assert state.rover_leg["distance_cm"] == 25.0
+    assert state.rover_leg["to_x_cm"] == 52.5
+    assert state.rover_leg["to_y_cm"] == 39.5
+
+
+def test_each_square_is_its_own_listen_and_the_briefing_names_the_row() -> None:
+    state = get_state()
+    state.reset()
+    assert apply_rover_line('ACK {"device":"arduino_uno","status":"grid_started"}')
+    assert apply_rover_line('ACK {"device":"arduino_uno","cell":"r1c1","phase":"hold"}')
+    assert state.heatmap[0]["point_id"] == "r1c1"
+    assert state.heatmap[0]["readings"]["place"] == "row 1, the first square"
+    assert apply_rover_line('ACK {"device":"arduino_uno","cell":"r2c3","phase":"hold"}')
+    assert [point["point_id"] for point in state.heatmap] == ["r1c1", "r2c3"]
+    assert apply_rover_line('ACK {"device":"arduino_uno","status":"grid_done"}')
+    assert "row 1, the first square" in state.reasoning["narrative"]
+
+
+def test_a_moving_rover_does_not_keep_the_microphone_trace() -> None:
+    state = get_state()
+    state.reset()
+    state.scan_route = search_lattice()
+    state.acoustic = {"class": "knock"}
+    state.acoustic_waveform = [0.4, 0.2]
+    assert apply_rover_line(
+        'ACK {"device":"arduino_uno","status":"moving","from":"r1c1","to":"r1c2","ms":1500}'
+    )
+    assert state.acoustic is None
+    assert state.acoustic_waveform == []
+    assert state.phase == "SCANNING"
 
 
 def test_scripted_pose_leaves_a_live_fix_in_place() -> None:

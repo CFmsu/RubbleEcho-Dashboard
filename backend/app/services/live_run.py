@@ -50,8 +50,9 @@ def open_pi_session() -> dict:
 
 
 def authorize_motion() -> dict:
-    """Open the live session if needed, then send one start character to the rover."""
+    """Stay stopped on the first square and sample each sensor in turn."""
     from app.drivers.motor_link import transmit
+    from app.services.auto_listen import start
 
     state = get_state()
     if state.mode != "live" or not state.run_active:
@@ -59,27 +60,25 @@ def authorize_motion() -> dict:
         if not opened["ok"]:
             return opened
         state = get_state()
-    link = transmit("A")
-    summary = (
-        f"Rover start sent on {link['port']}. Sensor values still come from the Raspberry Pi."
-        if link.get("sent")
-        else "Motion was authorized. No rover port accepted the start character."
-    )
+    link = transmit("S")
     state.add_event(
         device="arduino_uno",
         sensor="motors",
-        summary=summary,
-        quality="transmitted" if link.get("sent") else "unavailable",
+        summary="Armed. The rover stays on row 1, the first square, while the sensors take a turn.",
+        quality="operator",
         captured_at_utc=utc_now(),
         value=None,
         unit=None,
     )
+    started = start()
     _sync_trial(state)
     return {
         "ok": True,
         "status": 200,
         "mode": "LIVE",
         "trial_id": state.trial_id,
-        "motion": "authorized",
+        "motion": "stopped",
+        "drive_mode": "auto",
+        "sensors": started,
         "rover": link,
     }

@@ -69,8 +69,10 @@ def estop(reason: str = "operator_estop") -> dict:
     from app.services.sim_run import cancel_run
 
     cancel_run()
+    from app.services.remote_drive import hold_stopped
     from app.drivers.motor_link import transmit
 
+    hold_stopped()
     transmit("S")
     state = get_state()
     state.run_active = False
@@ -102,8 +104,10 @@ def estop(reason: str = "operator_estop") -> dict:
 
 
 def hold(reason: str = "operator_stop") -> dict:
+    from app.services.remote_drive import hold_stopped
     from app.drivers.motor_link import transmit
 
+    hold_stopped()
     transmit("S")
     state = get_state()
     if state.phase != "ESTOP":
@@ -452,10 +456,15 @@ def _cell_briefs(state) -> list[dict]:
         briefs.append(
             {
                 "point_id": point.get("point_id"),
+                "place": readings.get("place"),
                 "sound": readings.get("sound"),
+                "sound_category": readings.get("sound_category"),
                 "radar_presence": readings.get("radar_presence"),
                 "distance_m": readings.get("distance_m"),
                 "ultrasonic_cm": readings.get("ultrasonic_cm"),
+                "photos": readings.get("photos"),
+                "opencv": readings.get("opencv"),
+                "vision": readings.get("vision"),
                 "reading_score": point.get("score"),
             }
         )

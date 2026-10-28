@@ -77,6 +77,38 @@ def point_in_traversable(x_cm: float, y_cm: float, data: dict | None = None) -> 
     )
 
 
+SURVEY_DRIVE = ("A_NEAR", "A_FAR", "B_FAR", "B_NEAR", "C_NEAR", "C_FAR")
+
+
+def survey_route(data: dict | None = None) -> list[dict]:
+    """Drive order of the surveyed points, with each leg length in centimeters."""
+    points = point_map(data)
+    route: list[dict] = []
+    previous = None
+    for point_id in SURVEY_DRIVE:
+        point = points[point_id]
+        leg_cm = 0.0 if previous is None else round(separation_cm(previous, point), 1)
+        heading = 90.0
+        if previous is not None:
+            heading = round(
+                math.degrees(
+                    math.atan2(float(point["y_cm"]) - float(previous["y_cm"]), float(point["x_cm"]) - float(previous["x_cm"]))
+                ),
+                1,
+            )
+        route.append(
+            {
+                "id": point_id,
+                "x_cm": point["x_cm"],
+                "y_cm": point["y_cm"],
+                "leg_cm": leg_cm,
+                "heading_deg": heading,
+            }
+        )
+        previous = point
+    return route
+
+
 def search_lattice(data: dict | None = None) -> list[dict]:
     """Three by three cells covering the inner rectangle.
 

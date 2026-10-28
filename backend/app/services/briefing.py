@@ -15,6 +15,23 @@ _SOUND = {
     "unknown": "no clear sound",
 }
 
+_CATEGORY = {
+    "knock": "knock",
+    "periodic_tapping": "knock",
+    "scratch": "scrape",
+    "scratch/scrape": "scrape",
+    "ambient": "room",
+    "listening": "room",
+    "silence": "quiet",
+}
+
+
+def sound_category(label: str | None) -> str:
+    """The processed microphone label the model is allowed to repeat."""
+    if not label:
+        return "not_heard"
+    return _CATEGORY.get(str(label), "unclassified")
+
 
 def narrate(heatmap: list[dict], point_id: str | None) -> str:
     cells = [point for point in heatmap or [] if isinstance(point, dict) and point.get("point_id")]
@@ -46,8 +63,11 @@ def narrate(heatmap: list[dict], point_id: str | None) -> str:
         if others
         else ""
     )
+    from app.services.cell_visit import place_name
+
+    spoken = place_name(lead)
     return (
-        f"Walk to {lead} first. That is the square that stood out. "
+        f"Walk to {spoken} first. That is the square that stood out. "
         f"At that stop we heard {sound}, and {pulse}.{range_line} "
         f"The picture on this page is the camera frame from that stop."
         f"{next_line} "

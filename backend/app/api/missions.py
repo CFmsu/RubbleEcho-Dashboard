@@ -52,6 +52,7 @@ class PiBody(BaseModel):
     radar: dict | None = None
     ultrasonic: dict | None = None
     piezo: dict | None = None
+    audio: dict | None = None
     encoders: dict | None = None
     camera_id: str | None = None
     camera_jpeg_base64: str | None = None

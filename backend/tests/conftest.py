@@ -1,7 +1,10 @@
 import pytest
 
 from app.services import pi_ingest, sensor_gates
+from app.services.auto_listen import reset_auto
+from app.services.mic_window import reset_window
 from app.services.radar_link import stop_radar
+from app.services.remote_drive import reset_remote
 from app.services.sim_run import cancel_run
 from app.state import get_state
 
@@ -18,12 +21,18 @@ def isolate_state(monkeypatch, tmp_path):
     monkeypatch.delenv("RUBBLEECHO_PROBE_CAMERAS", raising=False)
     stop_radar()
     cancel_run()
+    reset_auto()
+    reset_remote()
+    reset_window()
     pi_ingest._frame.clear()
     sensor_gates._gates = {name: True for name in sensor_gates.SENSORS}
     get_state().reset()
     yield
     stop_radar()
     cancel_run()
+    reset_auto()
+    reset_remote()
+    reset_window()
     pi_ingest._frame.clear()
     sensor_gates._gates = {name: True for name in sensor_gates.SENSORS}
     get_state().reset()

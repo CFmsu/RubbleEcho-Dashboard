@@ -40,6 +40,11 @@ def apply_rover_line(line: str) -> bool:
     if status == "grid_started":
         state.pose_trail = []
         state.rover_leg = None
+        from app.services.cell_visit import begin_run
+        from app.services.mic_window import grid_started
+
+        begin_run()
+        grid_started()
         return True
     if status == "moving":
         origin = places.get(str(payload.get("from")))
@@ -53,6 +58,10 @@ def apply_rover_line(line: str) -> bool:
             duration = max(1, int(payload.get("ms") or 1))
         except (TypeError, ValueError):
             duration = 1
+        distance_cm = round(
+            math.hypot(float(dest["x_cm"]) - float(origin["x_cm"]), float(dest["y_cm"]) - float(origin["y_cm"])),
+            1,
+        )
         state.rover_leg = {
             "from_id": origin["id"],
             "to_id": dest["id"],
@@ -61,12 +70,16 @@ def apply_rover_line(line: str) -> bool:
             "to_x_cm": dest["x_cm"],
             "to_y_cm": dest["y_cm"],
             "heading_deg": round(heading, 1),
+            "distance_cm": distance_cm,
             "duration_ms": duration,
             "started": time.monotonic(),
         }
         _place(state, origin, heading, f"Driving from {origin['id']} to {dest['id']}.")
         state.phase = "SCANNING"
         state.scan_stage = f"MOVE {origin['id']} {dest['id']}"
+        from app.services.mic_window import hide_while_moving
+
+        hide_while_moving()
         return True
     if payload.get("phase") == "hold":
         cell = places.get(str(payload.get("cell")))
@@ -79,18 +92,26 @@ def apply_rover_line(line: str) -> bool:
         state.pose_trail.append(dict(state.pose))
         state.phase = "SCANNING"
         state.scan_stage = f"HOLD {cell['id']}"
+        from app.services.mic_window import begin_hold
+
+        begin_hold(cell)
         return True
     if status == "grid_done":
         state.rover_leg = None
         state.add_event(
             device="arduino_uno",
             sensor="motors",
-            summary="Rover finished the measured grid. The marker stays on the last reported cell.",
+            summary="Rover finished the nine squares. The marker stays on the last reported cell.",
             quality="measured",
             captured_at_utc=utc_now(),
             value=None,
             unit=None,
         )
+        from app.services.cell_visit import finish_run
+        from app.services.mic_window import grid_finished
+
+        grid_finished()
+        finish_run()
         return True
     return False
 
@@ -121,6 +142,7 @@ def public_leg(state) -> dict | None:
         "to_x_cm": leg["to_x_cm"],
         "to_y_cm": leg["to_y_cm"],
         "heading_deg": leg["heading_deg"],
+        "distance_cm": leg["distance_cm"],
         "duration_ms": leg["duration_ms"],
         "elapsed_ms": max(0, elapsed),
     }

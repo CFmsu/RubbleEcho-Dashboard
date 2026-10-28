@@ -1,8 +1,7 @@
 #include <SoftwareSerial.h>
 
 // Rover motor control. Pins and F/B/L/R/S behavior are the connected car.
-// 'A' drives the measured 3x3 by itself. There is no ultrasonic on this rover.
-// Inner table, sand_table_rev_c.json: 101 cm by 76 cm. Each cell is one third.
+// 'A' drives the surveyed legs. There is no ultrasonic on this rover.
 // 'S' from Bluetooth or USB stops the motors.
 
 SoftwareSerial bluetooth(2, 3);  // Arduino RX = D2; TX = D3 (leave D3 disconnected)
@@ -18,28 +17,27 @@ int motorSpeed = 160;  // PWM: 0–255
 bool moving = false;
 unsigned long lastMoveCommand = 0;
 
-// Stops after 1 second without another movement command.
-const unsigned long STOP_TIMEOUT = 1000;
+// Manual arrows stop if no fresh letter arrives. The phone repeats while held.
+const unsigned long STOP_TIMEOUT = 1600;
 
-// Surveyed separations from sand_table_rev_c.json. Not equal thirds of the box.
-// Near to far is 25.0 cm. A at x 52.5 to B at x 17.0 is 35.5 cm. B to C is 71.0 cm.
-// Start on A_NEAR facing A_FAR, down the table. No ultrasonic.
-const float SPEED_CM_S = 22.2f;
-const float TURN_DEG_S = 138.5f;
-const unsigned long DWELL_MS = 2000;
-const float NEAR_TO_FAR_CM = 25.0f;
-const float A_TO_SIDE_CM = 35.5f;
-const float B_TO_C_CM = 71.0f;
+// Nine squares on the inner table. Start on row 1, the first square, facing the second.
+// Row 1 runs left to right, row 2 right to left, row 3 left to right.
+// 45 ms of drive per centimeter was timed at PWM 160. Do not replace it with a guessed speed.
+const float MS_PER_CM = 45.0f;
+const byte TURN_POWER = 255;
+const unsigned long TURN_90_MS = 650;
+const unsigned long DWELL_MS = 7000;
+// Inner table is 101 cm by 76 cm. Each of the nine squares is one third.
+const float CELL_W_CM = 33.7f;
+const float CELL_H_CM = 25.3f;
 
 unsigned long msForCm(float centimeters) {
-  return (unsigned long)((centimeters / SPEED_CM_S) * 1000.0f);
+  return (unsigned long)(centimeters * MS_PER_CM);
 }
 
-unsigned long msForTurn90() {
-  return (unsigned long)((90.0f / TURN_DEG_S) * 1000.0f);
-}
-
-bool gridAborted = false;
+bool driveKnown = false;
+bool driveLeft = true;
+bool driveRight = true;
 
 void stopCar() {
   analogWrite(ENA, 0);
@@ -51,10 +49,17 @@ void stopCar() {
   digitalWrite(IN4, LOW);
 
   moving = false;
+  driveKnown = false;
 }
 
 void drive(bool leftForward, bool rightForward) {
-  // Briefly disable outputs before changing direction.
+  // A repeat of the same direction only refreshes the watchdog.
+  // Changing direction stops briefly so the two pairs do not fight.
+  if (driveKnown && leftForward == driveLeft && rightForward == driveRight) {
+    lastMoveCommand = millis();
+    moving = motorSpeed > 0;
+    return;
+  }
   stopCar();
   delay(30);
 
@@ -67,131 +72,100 @@ void drive(bool leftForward, bool rightForward) {
   analogWrite(ENA, motorSpeed);
   analogWrite(ENB, motorSpeed);
 
+  driveLeft = leftForward;
+  driveRight = rightForward;
+  driveKnown = true;
   moving = motorSpeed > 0;
   lastMoveCommand = millis();
 }
 
-void handleCommand(char command);
+enum StepKind : uint8_t { STEP_HOLD, STEP_ROLL, STEP_RIGHT, STEP_LEFT };
 
-char readPilot() {
-  if (bluetooth.available()) {
-    return bluetooth.read();
-  }
-  if (Serial.available()) {
-    return Serial.read();
-  }
-  return 0;
+struct GridStep {
+  StepKind kind;
+  float centimeters;
+  const char *fromId;
+  const char *toId;
+};
+
+// One step at a time. loop() reads the next letter before the step can advance,
+// so Stop and the arrows are never stuck behind the route.
+const GridStep GRID[] = {
+  {STEP_HOLD, 0, "r1c1", "r1c1"},
+  {STEP_ROLL, CELL_W_CM, "r1c1", "r1c2"},
+  {STEP_HOLD, 0, "r1c2", "r1c2"},
+  {STEP_ROLL, CELL_W_CM, "r1c2", "r1c3"},
+  {STEP_HOLD, 0, "r1c3", "r1c3"},
+  {STEP_RIGHT, 0, nullptr, nullptr},
+  {STEP_ROLL, CELL_H_CM, "r1c3", "r2c3"},
+  {STEP_HOLD, 0, "r2c3", "r2c3"},
+  {STEP_RIGHT, 0, nullptr, nullptr},
+  {STEP_ROLL, CELL_W_CM, "r2c3", "r2c2"},
+  {STEP_HOLD, 0, "r2c2", "r2c2"},
+  {STEP_ROLL, CELL_W_CM, "r2c2", "r2c1"},
+  {STEP_HOLD, 0, "r2c1", "r2c1"},
+  {STEP_LEFT, 0, nullptr, nullptr},
+  {STEP_ROLL, CELL_H_CM, "r2c1", "r3c1"},
+  {STEP_HOLD, 0, "r3c1", "r3c1"},
+  {STEP_LEFT, 0, nullptr, nullptr},
+  {STEP_ROLL, CELL_W_CM, "r3c1", "r3c2"},
+  {STEP_HOLD, 0, "r3c2", "r3c2"},
+  {STEP_ROLL, CELL_W_CM, "r3c2", "r3c3"},
+  {STEP_HOLD, 0, "r3c3", "r3c3"},
+};
+
+const byte GRID_COUNT = sizeof(GRID) / sizeof(GRID[0]);
+bool gridOn = false;
+byte gridIndex = 0;
+unsigned long stepDeadline = 0;
+
+void cancelGrid() {
+  gridOn = false;
 }
 
-bool waitMs(unsigned long duration) {
-  unsigned long start = millis();
-  while ((unsigned long)(millis() - start) < duration) {
-    lastMoveCommand = millis();
-    char command = readPilot();
-    if (command == 0) {
-      continue;
-    }
-    if (command == '\r' || command == '\n' || command == ' ') {
-      continue;
-    }
-    if (command == 'S' || command == 's') {
-      gridAborted = true;
-      stopCar();
-      return false;
-    }
-    gridAborted = true;
-    stopCar();
-    handleCommand(command);
-    return false;
-  }
-  return true;
-}
-
-void dwell(const char *cell) {
-  stopCar();
-  Serial.print("ACK {\"device\":\"arduino_uno\",\"cell\":\"");
-  Serial.print(cell);
-  Serial.println("\",\"phase\":\"hold\"}");
-  waitMs(DWELL_MS);
-}
-
-void reportMove(const char *fromCell, const char *toCell, unsigned long duration) {
-  Serial.print("ACK {\"device\":\"arduino_uno\",\"status\":\"moving\",\"from\":\"");
-  Serial.print(fromCell);
-  Serial.print("\",\"to\":\"");
-  Serial.print(toCell);
-  Serial.print("\",\"ms\":");
-  Serial.print(duration);
-  Serial.println("}");
-}
-
-void rollCm(float centimeters) {
-  if (gridAborted) {
-    return;
-  }
-  drive(true, true);
-  if (!waitMs(msForCm(centimeters))) {
-    return;
-  }
-  stopCar();
-}
-
-void travel(const char *fromCell, const char *toCell, float centimeters) {
-  if (gridAborted) {
-    return;
-  }
-  unsigned long duration = msForCm(centimeters) + 30;
-  reportMove(fromCell, toCell, duration);
-  rollCm(centimeters);
-}
-
-void turnRight90() {
-  if (gridAborted) {
-    return;
-  }
-  drive(true, false);  // same wheel directions as 'R'
-  if (!waitMs(msForTurn90())) {
-    return;
-  }
-  stopCar();
-  delay(30);
-}
-
-void turnLeft90() {
-  if (gridAborted) {
-    return;
-  }
-  drive(false, true);  // same wheel directions as 'L'
-  if (!waitMs(msForTurn90())) {
-    return;
-  }
-  stopCar();
-  delay(30);
-}
-
-void runMeasuredGrid() {
-  // Place the rover on A_NEAR, facing A_FAR. Each leg is a surveyed distance.
-  gridAborted = false;
-  Serial.println("ACK {\"device\":\"arduino_uno\",\"status\":\"grid_started\"}");
-  dwell("A_NEAR");
-  travel("A_NEAR", "A_FAR", NEAR_TO_FAR_CM);
-  dwell("A_FAR");
-  turnRight90();
-  travel("A_FAR", "B_FAR", A_TO_SIDE_CM);
-  dwell("B_FAR");
-  turnLeft90();
-  travel("B_FAR", "B_NEAR", NEAR_TO_FAR_CM);
-  dwell("B_NEAR");
-  turnLeft90();
-  travel("B_NEAR", "C_NEAR", B_TO_C_CM);
-  dwell("C_NEAR");
-  turnRight90();
-  travel("C_NEAR", "C_FAR", NEAR_TO_FAR_CM);
-  dwell("C_FAR");
-  if (!gridAborted) {
+void beginGridStep() {
+  if (gridIndex >= GRID_COUNT) {
+    gridOn = false;
     stopCar();
     Serial.println("ACK {\"device\":\"arduino_uno\",\"status\":\"grid_done\"}");
+    return;
   }
+  const GridStep step = GRID[gridIndex];
+  unsigned long duration = DWELL_MS;
+  if (step.kind == STEP_HOLD) {
+    stopCar();
+    Serial.print("ACK {\"device\":\"arduino_uno\",\"cell\":\"");
+    Serial.print(step.toId);
+    Serial.println("\",\"phase\":\"hold\"}");
+  } else if (step.kind == STEP_ROLL) {
+    duration = msForCm(step.centimeters);
+    Serial.print("ACK {\"device\":\"arduino_uno\",\"status\":\"moving\",\"from\":\"");
+    Serial.print(step.fromId);
+    Serial.print("\",\"to\":\"");
+    Serial.print(step.toId);
+    Serial.print("\",\"cm\":");
+    Serial.print(step.centimeters, 1);
+    Serial.print(",\"ms\":");
+    Serial.print(duration);
+    Serial.println("}");
+    motorSpeed = 160;
+    drive(true, true);
+  } else {
+    bool right = step.kind == STEP_RIGHT;
+    motorSpeed = TURN_POWER;
+    driveKnown = false;
+    drive(right, !right);
+    motorSpeed = 160;
+    duration = TURN_90_MS;
+  }
+  stepDeadline = millis() + duration;
+}
+
+void startGrid() {
+  gridOn = true;
+  gridIndex = 0;
+  Serial.println("ACK {\"device\":\"arduino_uno\",\"status\":\"grid_started\"}");
+  beginGridStep();
 }
 
 void handleCommand(char command) {
@@ -203,9 +177,6 @@ void handleCommand(char command) {
   if (command == '\r' || command == '\n' || command == ' ') {
     return;
   }
-
-  Serial.print("Received: ");
-  Serial.println(command);
 
   if (command >= '0' && command <= '9') {
     motorSpeed = map(command - '0', 0, 9, 0, 255);
@@ -220,26 +191,39 @@ void handleCommand(char command) {
 
   switch (command) {
     case 'F':
+      cancelGrid();
+      motorSpeed = 160;
       drive(true, true);
       break;
 
     case 'B':
+      cancelGrid();
+      motorSpeed = 160;
       drive(false, false);
       break;
 
     case 'L':
+      cancelGrid();
+      motorSpeed = TURN_POWER;
+      driveKnown = false;
       drive(false, true);
+      motorSpeed = 160;
       break;
 
     case 'R':
+      cancelGrid();
+      motorSpeed = TURN_POWER;
+      driveKnown = false;
       drive(true, false);
+      motorSpeed = 160;
       break;
 
     case 'A':
-      runMeasuredGrid();
+      startGrid();
       break;
 
     case 'S':
+      cancelGrid();
       stopCar();
       break;
 
@@ -264,30 +248,34 @@ void setup() {
   bluetooth.begin(9600);  // Assumes module UART is set to 9600
 
   Serial.println("Ready: F B L R S A | Speed 0-9");
-  Serial.println("Each movement command lasts up to 1 second. A runs the measured grid.");
-  Serial.print("Near to far ");
-  Serial.print(NEAR_TO_FAR_CM, 1);
-  Serial.print(" cm, A to side ");
-  Serial.print(A_TO_SIDE_CM, 1);
-  Serial.print(" cm, B to C ");
-  Serial.print(B_TO_C_CM, 1);
+  Serial.println("Hold a direction to keep going. A starts on row 1, the first square.");
+  Serial.println("Each square is its own stop: 7 seconds for signals, then the next square.");
+  Serial.print("Across a row ");
+  Serial.print(CELL_W_CM, 1);
+  Serial.print(" cm, down to the next row ");
+  Serial.print(CELL_H_CM, 1);
   Serial.print(" cm, at ");
-  Serial.print(SPEED_CM_S, 1);
-  Serial.println(" cm/s. No ultrasonic.");
+  Serial.print(MS_PER_CM, 0);
+  Serial.println(" ms/cm. No ultrasonic.");
 }
 
 void loop() {
+  // One letter per pass, before the route is allowed to advance.
+  char command = 0;
   if (bluetooth.available()) {
-    handleCommand(bluetooth.read());
+    command = bluetooth.read();
+  } else if (Serial.available()) {
+    command = Serial.read();
+  }
+  if (command != 0) {
+    handleCommand(command);
   }
 
-  // Also allows testing from the computer's Serial Monitor.
-  if (Serial.available()) {
-    handleCommand(Serial.read());
-  }
-
-  if (moving && millis() - lastMoveCommand >= STOP_TIMEOUT) {
+  if (gridOn && (long)(millis() - stepDeadline) >= 0) {
     stopCar();
-    Serial.println("Timeout: stopped");
+    gridIndex++;
+    beginGridStep();
+  } else if (!gridOn && moving && millis() - lastMoveCommand >= STOP_TIMEOUT) {
+    stopCar();
   }
 }

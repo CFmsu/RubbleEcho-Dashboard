@@ -116,9 +116,9 @@ function HeaderStart({ connected, running }: { connected: boolean; running: bool
       type="button"
       className="start-btn"
       disabled={!connected || running}
-      title={running ? 'A session is open. STOP ends motion.' : 'Authorize the physical rover, then wait for Raspberry Pi samples.'}
+      title={running ? 'A session is open. STOP ends it.' : 'Stay stopped, sample each sensor, and send the sound to the model.'}
       onClick={() => {
-        const allowed = window.confirm('This sends the start character to the physical rover. Sensor numbers come only from the Raspberry Pi. Continue?')
+        const allowed = window.confirm('Arm stays stopped on the first square, turns each sensor on in turn, and sends the processed sound to the model. Continue?')
         if (!allowed) return
         startHardware().then(() => setFailed(false)).catch(() => setFailed(true))
       }}

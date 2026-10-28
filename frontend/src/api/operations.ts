@@ -68,7 +68,10 @@ export async function startHardware(): Promise<string> {
   const response = await postJson('/api/mission/hardware', { authorize_motion: true })
   const text = await response.text()
   if (!response.ok) throw new Error(text || 'Rover start refused')
-  const payload = JSON.parse(text) as { rover?: { sent?: boolean; port?: string | null } }
+  const payload = JSON.parse(text) as { rover?: { sent?: boolean; port?: string | null }; motion?: string }
+  if (payload.motion === 'stopped') {
+    return 'Armed. The rover stays on the first square. Radar, range, camera, then the mic. The model categorizes the sound.'
+  }
   if (payload.rover?.sent && payload.rover.port) {
     return `Rover start sent on ${payload.rover.port}. Waiting for Raspberry Pi samples.`
   }

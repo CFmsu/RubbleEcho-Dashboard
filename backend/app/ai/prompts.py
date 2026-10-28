@@ -19,6 +19,9 @@ Keep hypotheses to one item and the summary to one sentence, so the JSON is fini
 The cells list is every place already sampled. If one cell is clearly stronger, set recommendation.type to rescan_at_point and point_id to that cell. If every reading is weak, use needs_operator and point_id null.
 The summary names the first cell a person should check and what was heard there.
 narrative is three or four short sentences a person can read aloud at the table.
+Name a square in everyday words: r1c1 is row 1, the first square; r1c2 is row 1, the second square; r2c3 is row 2, the third square. Row 1 is visited left to right, row 2 right to left, row 3 left to right.
+sound_category is the processed microphone result: knock, scrape, room, quiet, or not_heard.
+Repeat that category in everyday words. Do not invent a different sound.
 Name the first cell, say what was heard in everyday words (a knock, a scrape, or only the room),
 say whether a pulse showed up, and say the picture is the camera frame from that stop.
 Then name the next cell. Do not say a person is buried.

@@ -65,6 +65,12 @@ def ingest(payload: dict) -> dict:
 
             apply_line("PIEZO " + json.dumps(piezo))
             applied.append("piezo")
+    audio = payload.get("audio")
+    if isinstance(audio, dict) and isinstance(audio.get("samples"), list) and audio.get("samples"):
+        if not enabled("acoustic"):
+            skipped.append("acoustic")
+        elif _apply_audio(audio):
+            applied.append("acoustic")
     encoders = payload.get("encoders")
     if isinstance(encoders, dict):
         import json
@@ -76,6 +82,9 @@ def ingest(payload: dict) -> dict:
         if not enabled("camera"):
             skipped.append("camera")
         elif _store_frame(str(payload.get("camera_id") or "camera_top"), image):
+            from app.services.cell_visit import keep_frame
+
+            keep_frame(base64.b64decode(image))
             applied.append("camera")
     if not applied and not skipped:
         return {"ok": False, "status": 400, "error": "No Raspberry Pi fields were present."}
@@ -119,6 +128,32 @@ def _apply_text(line: str) -> None:
             get_state().radar = observation
             return
     apply_line(line)
+
+
+def _apply_audio(audio: dict) -> bool:
+    from app.services.briefing import sound_category
+    from app.services.feature_extraction import classify_window
+
+    try:
+        samples = [float(sample) for sample in audio["samples"]]
+        rate = float(audio.get("sample_rate") or 16000)
+    except (TypeError, ValueError):
+        return False
+    heard = classify_window(samples, rate, utc_now(), {"site_id": None, "source_mode": "live"})
+    heard["sound_category"] = sound_category(heard.get("class"))
+    state = get_state()
+    state.acoustic = heard
+    state.add_event(
+        device="raspberry_pi_4",
+        sensor="acoustic",
+        summary=f"Processed microphone audio: {heard['sound_category']}.",
+        quality="sensor",
+        captured_at_utc=utc_now(),
+        value=heard.get("duration_ms"),
+        unit="ms",
+        acoustic_class=heard.get("class"),
+    )
+    return True
 
 
 def _apply_radar(radar: dict) -> bool:

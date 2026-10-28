@@ -188,6 +188,7 @@ export interface OperationsSnapshot {
     to_x_cm: number
     to_y_cm: number
     heading_deg: number
+    distance_cm?: number
     duration_ms: number
     elapsed_ms: number
   } | null
