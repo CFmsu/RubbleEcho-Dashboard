@@ -34,6 +34,15 @@ def test_moving_report_draws_the_leg_between_cells() -> None:
     assert state.rover_leg["duration_ms"] == 1800
 
 
+def test_reported_site_uses_the_surveyed_coordinate() -> None:
+    state = get_state()
+    state.reset()
+    assert apply_rover_line('ACK {"device":"arduino_uno","cell":"A_NEAR","phase":"hold"}')
+    assert state.pose["cell_id"] == "A_NEAR"
+    assert state.pose["x_cm"] == 52.5
+    assert state.pose["y_cm"] == 14.5
+
+
 def test_scripted_pose_leaves_a_live_fix_in_place() -> None:
     state = get_state()
     state.reset()

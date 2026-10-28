@@ -33,8 +33,8 @@ export default function MissionToolbar({
         {meta}{status ? ` · ${status}` : ''}
       </p>
       <div className="toolbar-actions">
-        <span title={running ? 'The walk is going. Stop ends it.' : 'Start the walk across the sand table.'}>
-          <button type="button" className="btn primary" disabled={running} onClick={onRun}>{running ? 'Walking' : 'Start'}</button>
+        <span title={running ? 'A session is open. STOP ends motion.' : 'Authorize the physical rover, then wait for Raspberry Pi samples.'}>
+          <button type="button" className="btn primary" disabled={running} onClick={onRun}>{running ? 'Armed' : 'Arm rover'}</button>
         </span>
         <span title="Stop the simulation and return the console to idle.">
           <button type="button" className="btn danger" onClick={onStop}>Stop</button>

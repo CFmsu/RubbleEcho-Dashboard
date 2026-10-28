@@ -22,8 +22,9 @@ def test_export_archive_is_complete_and_secret_free(auth_header) -> None:
         json={"mode": "live"},
         headers=auth_header,
     )
-    assert started.status_code == 409
-    assert started.json()["detail"]["code"] == "NEEDS_HARDWARE_VERIFICATION"
+    assert started.status_code == 200
+    assert started.json()["mode"] == "LIVE"
+    assert started.json()["motion"] == "not_authorized"
 
     started = client.post(
         "/api/trials/start",

@@ -15,6 +15,7 @@ import {
   sendHold,
   startDummyRadar,
   startPiMimic,
+  startHardware,
   startSimulation,
   stopRadar,
 } from '../api/operations'
@@ -76,7 +77,11 @@ export default function LiveOperations({
         hasToken={hasToken}
         status={actionError || notice}
         onOpen={setActive}
-        onRun={() => void run(() => startSimulation())}
+        onRun={() => {
+          const allowed = window.confirm('This sends the start character to the physical rover. Sensor numbers come only from the Raspberry Pi. Continue?')
+          if (!allowed) return
+          void run(() => startHardware())
+        }}
         onStop={() => void run(() => haltSimulation())}
         onCapture={() => {
           const cameras = (snapshot?.cameras ?? []).filter((camera) => camera.state === 'connected')
@@ -110,6 +115,7 @@ export default function LiveOperations({
           onPiMimic={() => void run(async () => (
             snapshot?.radar?.case_name === 'Pi mimic' ? stopRadar() : startPiMimic()
           ))}
+          onScripted={() => void run(() => startSimulation())}
           onRadarLive={() => void run(async () => {
             const live = snapshot?.devices?.some((device) => device.device_id === 'mr60bha2' && device.source_mode === 'live')
             return live ? stopRadar() : listenRadar()

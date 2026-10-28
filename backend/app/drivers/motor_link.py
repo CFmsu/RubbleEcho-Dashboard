@@ -37,7 +37,7 @@ def motor_port(ports: list | None = None) -> str | None:
 
 def transmit(command: str, write=None) -> dict:
     """Write A to start the measured grid, or S to stop. Baud is 9600, matching the sketch."""
-    if command not in {"A", "S"}:
+    if command not in {"A", "F", "B", "L", "R", "S"}:
         return {"sent": False, "port": None, "command": command, "reason": "rejected"}
     if write is None and os.environ.get("PYTEST_CURRENT_TEST"):
         return {"sent": False, "port": None, "command": command, "reason": "not_sent"}

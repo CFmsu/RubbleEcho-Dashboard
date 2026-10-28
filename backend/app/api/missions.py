@@ -3,7 +3,9 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.api.auth import require_operator
+from app.services.live_run import authorize_motion, open_pi_session
 from app.services.mission import arm_solenoid, estop, hold, knock_request, snapshot, submit_command
+from app.services.pi_ingest import ingest
 from app.services.sim_run import halt_run, media_file, start_run
 from app.state import get_state
 
@@ -40,9 +42,50 @@ async def mission_state() -> dict:
     }
 
 
+class HardwareBody(BaseModel):
+    authorize_motion: bool = False
+
+
+class PiBody(BaseModel):
+    source: str = "raspberry_pi_4"
+    lines: list[str] | None = None
+    radar: dict | None = None
+    ultrasonic: dict | None = None
+    piezo: dict | None = None
+    encoders: dict | None = None
+    camera_id: str | None = None
+    camera_jpeg_base64: str | None = None
+
+
 @router.post("/api/mission/run")
 async def mission_run() -> dict:
     return start_run()
+
+
+@router.post("/api/mission/live")
+async def mission_live() -> dict:
+    return open_pi_session()
+
+
+@router.post("/api/mission/hardware")
+async def mission_hardware(body: HardwareBody) -> dict:
+    if not body.authorize_motion:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "ok": False,
+                "error": "Physical motion requires authorize_motion true. POST /api/mission/live waits for the Pi without moving.",
+            },
+        )
+    return authorize_motion()
+
+
+@router.post("/api/pi/ingest")
+async def pi_ingest(body: PiBody) -> dict:
+    result = ingest(body.model_dump())
+    if not result["ok"]:
+        raise HTTPException(status_code=result["status"], detail=result)
+    return result
 
 
 @router.post("/api/mission/halt")

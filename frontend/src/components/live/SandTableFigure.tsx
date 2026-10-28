@@ -131,49 +131,55 @@ export default function SandTableFigure({
 function useRunElapsed(snapshot: OperationsSnapshot | null): number {
   const base = snapshot?.run_elapsed_s ?? 0
   const active = Boolean(snapshot?.run_active)
-  const stamp = useRef({ base, at: performance.now() })
+  const stamp = useRef<{ base: number; at: number } | null>(null)
   const [elapsed, setElapsed] = useState(base)
-
-  useEffect(() => {
-    stamp.current = { base, at: performance.now() }
+  const [clock, setClock] = useState({ base, active })
+  if (clock.base !== base || clock.active !== active) {
+    setClock({ base, active })
     setElapsed(base)
-  }, [base, active])
+  }
 
   useEffect(() => {
     if (!active) return
+    stamp.current = { base, at: performance.now() }
     let frame = 0
     const loop = () => {
-      setElapsed(stamp.current.base + (performance.now() - stamp.current.at) / 1000)
+      const mark = stamp.current
+      if (!mark) return
+      setElapsed(mark.base + (performance.now() - mark.at) / 1000)
       frame = requestAnimationFrame(loop)
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
-  }, [active])
+  }, [active, base])
 
   return elapsed
 }
 
 function useLegElapsed(leg: OperationsSnapshot['rover_leg']): number | undefined {
   const key = leg ? `${leg.from_id}:${leg.to_id}:${leg.duration_ms}` : ''
-  const stamp = useRef({ base: leg?.elapsed_ms ?? 0, at: performance.now() })
-  const [elapsed, setElapsed] = useState(leg?.elapsed_ms ?? 0)
-
-  useEffect(() => {
-    if (!leg) return
-    stamp.current = { base: leg.elapsed_ms, at: performance.now() }
-    setElapsed(leg.elapsed_ms)
-  }, [leg, key])
+  const mark = leg?.elapsed_ms ?? 0
+  const stamp = useRef<{ base: number; at: number } | null>(null)
+  const [elapsed, setElapsed] = useState(mark)
+  const [seen, setSeen] = useState({ key, mark })
+  if (seen.key !== key || seen.mark !== mark) {
+    setSeen({ key, mark })
+    setElapsed(mark)
+  }
 
   useEffect(() => {
     if (!key) return
+    stamp.current = { base: mark, at: performance.now() }
     let frame = 0
     const loop = () => {
-      setElapsed(stamp.current.base + (performance.now() - stamp.current.at))
+      const origin = stamp.current
+      if (!origin) return
+      setElapsed(origin.base + (performance.now() - origin.at))
       frame = requestAnimationFrame(loop)
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
-  }, [key])
+  }, [key, mark])
 
   return leg ? elapsed : undefined
 }

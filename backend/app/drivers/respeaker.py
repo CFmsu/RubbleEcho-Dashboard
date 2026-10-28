@@ -38,12 +38,12 @@ def device_report() -> dict:
     """Query the host audio API. Does not leave a stream open."""
     try:
         import sounddevice as sd
-    except ImportError:
+    except (ImportError, OSError):
         return _report(
             "disconnected",
             "not_enumerated",
             None,
-            "sounddevice is not installed. Install backend/requirements-hardware.txt before plugging in the XVF3800.",
+            "The microphone library is unavailable. The XVF3800 stays disconnected until PortAudio can open.",
         )
     try:
         found = _match_input(sd)
@@ -59,16 +59,16 @@ def device_report() -> dict:
     channels = int(found["max_input_channels"])
     if channels < RAW_CHANNELS:
         return _report(
-            "disconnected",
-            "processed_voice_stream" if channels <= 2 else "unexpected_channel_count",
+            "ready",
+            "processed_voice_stream",
             channels,
-            (
-                f"{found['name']} exposes {channels} input channel(s), not 6. "
-                "That is the processed voice stream. Flash the 6-channel raw image with the XMOS DFU tool, replug, "
-                "and open the hw: device (Linux) or the 6-channel host endpoint (Windows)."
-            ),
+            None,
             device_index=found["index"],
             device_name=found["name"],
+            note=(
+                f"{found['name']} exposes {channels} processed channel(s), not 6 raw capsules. "
+                "The dashboard classifies that mix with local shape rules. It is not an NVIDIA audio model."
+            ),
         )
     return _report(
         "ready",
@@ -77,6 +77,7 @@ def device_report() -> dict:
         None,
         device_index=found["index"],
         device_name=found["name"],
+        note="Four raw capsules are used. Loopback and the processed mix are discarded.",
     )
 
 
@@ -98,39 +99,48 @@ def configured_serial_port() -> str:
 
 def iter_mic_blocks(stop: threading.Event):
     """Yield float blocks shaped (frames, 4), one column per raw mic."""
-    import sounddevice as sd
+    try:
+        import sounddevice as sd
+    except (ImportError, OSError) as exc:
+        raise RuntimeError("The microphone library is unavailable.") from exc
 
-    report = device_report()
-    if report["state"] != "ready":
-        raise RuntimeError(report["error"] or "XVF3800 is not ready")
-    queue = _queue()
+    stream, _channels = _open_input(sd)
     indexes = mic_indexes()
-
-    def callback(indata, frames, time_info, status) -> None:
-        del frames, time_info
-        if stop.is_set():
-            raise sd.CallbackStop()
-        if status and status.input_overflow:
-            queue.put(("overflow", None))
-            return
-        queue.put(("audio", indata.copy()))
-
-    with sd.InputStream(
-        device=_device_arg(report),
-        channels=RAW_CHANNELS,
-        samplerate=RATE_HZ,
-        dtype="int16",
-        blocksize=BLOCK_SAMPLES,
-        callback=callback,
-    ):
+    try:
         while not stop.is_set():
             try:
-                kind, payload = queue.get(timeout=0.2)
+                payload, overflowed = stream.read(BLOCK_SAMPLES)
             except Exception:
+                if stop.is_set():
+                    break
+                raise
+            if overflowed:
                 continue
-            if kind == "overflow":
-                continue
-            yield deinterleave_mics(payload, indexes)
+            yield as_four_mics(payload, indexes)
+    finally:
+        stream.stop()
+        stream.close()
+
+
+def as_four_mics(block, indexes: tuple[int, int, int, int] | None = None):
+    """Return float mics shaped (frames, 4). A 6-channel block keeps four capsules.
+
+    A processed 1- or 2-channel mix is repeated across the four columns so the
+    existing shape rules can run. Those copies are not separate capsules.
+    """
+    import numpy as np
+
+    data = np.asarray(block)
+    if data.ndim != 2:
+        raise ValueError("expected an interleaved frame buffer shaped (frames, channels)")
+    if data.shape[1] >= RAW_CHANNELS:
+        return deinterleave_mics(data, indexes)
+    column = data[:, :1]
+    if np.issubdtype(column.dtype, np.integer):
+        column = column.astype(np.float64) / 32768.0
+    else:
+        column = column.astype(np.float64)
+    return np.repeat(column, 4, axis=1)
 
 
 def deinterleave_mics(block, indexes: tuple[int, int, int, int] | None = None):
@@ -168,7 +178,13 @@ def _match_input(sd) -> dict | None:
         if int(item["max_input_channels"]) < 1:
             continue
         name = str(item["name"])
-        candidates.append({"index": index, "name": name, "max_input_channels": int(item["max_input_channels"])})
+        candidates.append({
+            "index": index,
+            "name": name,
+            "max_input_channels": int(item["max_input_channels"]),
+            "default_samplerate": float(item["default_samplerate"]),
+            "hostapi": int(item["hostapi"]),
+        })
     if override:
         if override.isdigit():
             index = int(override)
@@ -178,7 +194,68 @@ def _match_input(sd) -> dict | None:
     named = [item for item in candidates if any(needle in item["name"].lower() for needle in _NAME_NEEDLES)]
     if not named:
         return None
-    return max(named, key=lambda item: item["max_input_channels"])
+    return min(named, key=_input_rank)
+
+
+def _input_rank(item: dict) -> tuple:
+    # WASAPI, then DirectSound, then MME. WDM-KS fails to start on this array.
+    host_penalty = {2: 0, 1: 1, 0: 2}.get(int(item.get("hostapi", -1)), 5)
+    return (
+        -int(item["max_input_channels"]),
+        host_penalty,
+        abs(float(item["default_samplerate"]) - RATE_HZ),
+        int(item["index"]),
+    )
+
+
+def _open_input(sd):
+    """Start one input stream. Try every ReSpeaker endpoint until one accepts reads."""
+    override = os.environ.get("RUBBLEECHO_AUDIO_DEVICE", "").strip()
+    devices = sd.query_devices()
+    named = []
+    for index, item in enumerate(devices):
+        if int(item["max_input_channels"]) < 1:
+            continue
+        name = str(item["name"])
+        if override:
+            if override.isdigit() and int(override) != index:
+                continue
+            if not override.isdigit() and override.lower() not in name.lower():
+                continue
+        elif not any(needle in name.lower() for needle in _NAME_NEEDLES):
+            continue
+        named.append({
+            "index": index,
+            "name": name,
+            "max_input_channels": int(item["max_input_channels"]),
+            "default_samplerate": float(item["default_samplerate"]),
+            "hostapi": int(item["hostapi"]),
+        })
+    errors = []
+    for item in sorted(named, key=_input_rank):
+        channels = min(int(item["max_input_channels"]), RAW_CHANNELS)
+        stream = None
+        try:
+            stream = sd.InputStream(
+                device=item["index"],
+                channels=channels,
+                samplerate=RATE_HZ,
+                dtype="int16",
+                blocksize=BLOCK_SAMPLES,
+                latency="high",
+            )
+            stream.start()
+            stream.read(BLOCK_SAMPLES)
+            return stream, channels
+        except Exception as exc:
+            errors.append(f"{item['index']} {item['name']}: {exc}")
+            if stream is not None:
+                try:
+                    stream.close()
+                except Exception:
+                    pass
+    detail = "; ".join(errors) if errors else "XVF3800 was not enumerated."
+    raise RuntimeError(detail)
 
 
 def _device_arg(report: dict):
@@ -195,6 +272,7 @@ def _report(
     error: str | None,
     device_index: int | None = None,
     device_name: str | None = None,
+    note: str | None = None,
 ) -> dict:
     mics = list(mic_indexes()) if channels and channels >= RAW_CHANNELS else None
     discarded = [index for index in range(RAW_CHANNELS) if mics is not None and index not in mics]
@@ -211,6 +289,7 @@ def _report(
         "mic_indexes": mics,
         "discarded_indexes": discarded or None,
         "error": error,
+        "note": note,
         "status": "READY" if state == "ready" else "NEEDS_HARDWARE_VERIFICATION",
         "piezo": False,
     }

@@ -6,15 +6,17 @@ import HeatmapPage from './features/heatmap/HeatmapPage'
 import LegacyPanel from './features/operations/LegacyPanel'
 import ReasoningPage from './features/reasoning/ReasoningPage'
 import SensorsPage from './features/sensors/SensorsPage'
-import { sendEstop, startSimulation } from './api/operations'
+import { sendEstop, startHardware } from './api/operations'
 import { useOperations } from './hooks/useOperations'
 import LiveOperations from './pages/LiveOperations'
+import RemotePage from './pages/RemotePage'
 import { Architecture } from './pages/Architecture'
 
-type Page = 'live' | 'sensors' | 'heatmap' | 'reasoning' | 'diagnostics' | 'how' | 'about' | 'architecture' | 'legacy'
+type Page = 'live' | 'remote' | 'sensors' | 'heatmap' | 'reasoning' | 'diagnostics' | 'how' | 'about' | 'architecture' | 'legacy'
 
 const NAV: Array<{ id: Page; label: string }> = [
   { id: 'live', label: 'Live Operations' },
+  { id: 'remote', label: 'Remote' },
   { id: 'sensors', label: 'Sensors' },
   { id: 'heatmap', label: 'Heatmap & Trials' },
   { id: 'reasoning', label: 'AI Reasoning' },
@@ -22,11 +24,12 @@ const NAV: Array<{ id: Page; label: string }> = [
 ]
 
 export default function App() {
-  const [page, setPage] = useState<Page>('live')
+  const [page, setPage] = useState<Page>(window.location.hash === '#remote' ? 'remote' : 'live')
   const [helpOpen, setHelpOpen] = useState(false)
   const { snapshot, connection } = useOperations()
   const connected = connection === 'connected'
   const live = page === 'live'
+  const remote = page === 'remote'
 
   const openHelp = (next: Page) => {
     setHelpOpen(false)
@@ -34,8 +37,9 @@ export default function App() {
   }
 
   return (
-    <div className={live ? 'app-shell is-live' : 'app-shell is-page'} data-testid={live ? 'app-shell' : undefined}>
-      <header className="app-header">
+    <div className={remote ? 'app-shell is-remote' : live ? 'app-shell is-live' : 'app-shell is-page'} data-testid={live ? 'app-shell' : undefined}>
+      {remote ? <RemotePage onDashboard={() => setPage('live')} /> : null}
+      {remote ? null : <header className="app-header">
         <div className="brand">
           <h1>RubbleEcho</h1>
           <span>Sand table Rev C</span>
@@ -63,8 +67,8 @@ export default function App() {
           <HeaderStart connected={connected} running={Boolean(snapshot?.run_active)} />
           <HeaderStop connected={connected} />
         </div>
-      </header>
-      {live ? <LiveOperations snapshot={snapshot} connected={connected} /> : (
+      </header>}
+      {remote ? null : live ? <LiveOperations snapshot={snapshot} connected={connected} /> : (
         <main className="page-scroll">
           {page === 'sensors' ? <SensorsPage snapshot={snapshot} /> : null}
           {page === 'heatmap' ? <HeatmapPage snapshot={snapshot} /> : null}
@@ -112,12 +116,14 @@ function HeaderStart({ connected, running }: { connected: boolean; running: bool
       type="button"
       className="start-btn"
       disabled={!connected || running}
-      title={running ? 'The walk is going. Stop ends it.' : 'Start the walk across the sand table.'}
+      title={running ? 'A session is open. STOP ends motion.' : 'Authorize the physical rover, then wait for Raspberry Pi samples.'}
       onClick={() => {
-        startSimulation().then(() => setFailed(false)).catch(() => setFailed(true))
+        const allowed = window.confirm('This sends the start character to the physical rover. Sensor numbers come only from the Raspberry Pi. Continue?')
+        if (!allowed) return
+        startHardware().then(() => setFailed(false)).catch(() => setFailed(true))
       }}
     >
-      {failed ? 'Start failed' : running ? 'Walking' : 'Start'}
+      {failed ? 'Arm failed' : running ? 'Armed' : 'Arm rover'}
     </button>
   )
 }

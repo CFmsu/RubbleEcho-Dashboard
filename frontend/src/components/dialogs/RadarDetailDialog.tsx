@@ -1,6 +1,6 @@
 import type { OperationsSnapshot } from '../../types/operations'
 import { clockLabel, panelState } from '../live/format'
-import { radarRunning } from '../live/RadarOverview'
+import { radarRunning } from '../live/radarFeed'
 import RadarScope from '../live/RadarScope'
 import DetailDialog, { FactGrid } from './DetailDialog'
 

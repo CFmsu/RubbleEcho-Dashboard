@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api import ai, audio, cameras, devices, events, health, missions, radar, search, stream, trials
+from app.api import ai, audio, cameras, devices, events, health, missions, radar, remote, search, stream, trials
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -14,3 +14,4 @@ api_router.include_router(cameras.router)
 api_router.include_router(ai.router)
 api_router.include_router(trials.router)
 api_router.include_router(stream.router)
+api_router.include_router(remote.router)

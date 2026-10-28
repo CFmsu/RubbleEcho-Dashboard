@@ -46,17 +46,9 @@ def start_trial(mode: str, fixture: str | None) -> dict:
             "error": "Use POST /api/mission/demo for the legacy grid simulation.",
         }
     if mode == "live":
-        return {
-            "ok": False,
-            "status": 409,
-            "error": "Live mode is refused until devices are enumerated and verified.",
-            "code": "NEEDS_HARDWARE_VERIFICATION",
-            "devices": [
-                device["device_id"]
-                for device in state.devices
-                if device["source_mode"] != "live"
-            ],
-        }
+        from app.services.live_run import open_pi_session
+
+        return open_pi_session()
     if mode != "replay":
         return {"ok": False, "status": 400, "error": "unsupported mode"}
     if fixture not in {None, "sample_trial"}:
@@ -382,15 +374,27 @@ def export_trial(trial_id: str) -> bytes | None:
 
 
 def capture_camera(camera_id: str) -> dict:
+    from app.services.pi_ingest import posted_frame
+
     camera = find_camera(camera_id, get_state().cameras)
     if camera is None:
         return {"ok": False, "status": 404, "error": "unknown camera"}
+    frame = posted_frame(camera_id)
+    if frame is None:
+        return {
+            "ok": False,
+            "status": 409,
+            "error": "No frame has been posted by the Raspberry Pi for this camera.",
+            "state": camera["state"],
+            "frame_available": False,
+        }
     return {
-        "ok": False,
-        "status": 409,
-        "error": camera["error"] or "disconnected",
-        "state": camera["state"],
-        "frame_available": False,
+        "ok": True,
+        "status": 200,
+        "state": "connected",
+        "frame_available": True,
+        "byte_length": len(frame),
+        "media_type": "image/jpeg",
     }
 
 

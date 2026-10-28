@@ -83,6 +83,8 @@ def build_snapshot(state: AppState) -> dict:
         "trial_id": state.trial_id,
         "fixture_name": state.fixture_name,
         "malformed_radar_lines": state.malformed_radar,
+        "sensor_gates": _sensor_gates(),
+        "remote": _remote_state(),
         "legacy_simulation_active": state.legacy_active,
     }
 
@@ -101,6 +103,18 @@ def _public_device(device: dict, ai: dict, nvidia_online: bool) -> dict:
     item["state"] = "disconnected"
     item["source_mode"] = "unavailable"
     return item
+
+
+def _sensor_gates() -> dict:
+    from app.services.sensor_gates import public_gates
+
+    return public_gates()
+
+
+def _remote_state() -> dict:
+    from app.services.remote_drive import public_remote
+
+    return public_remote()
 
 
 def _badge(state: AppState) -> str:

@@ -1030,6 +1030,178 @@ a.btn {
   padding: 16px;
 }
 
+.app-shell.is-remote {
+  grid-template-rows: minmax(0, 1fr);
+  height: 100dvh;
+  background: #f4f7fb;
+  color: #17243b;
+}
+
+.remote-pad {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 22px;
+  touch-action: manipulation;
+  user-select: none;
+  background: #f3f5f8;
+  overflow: auto;
+}
+
+.remote-back {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: #3b82f6;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.remote-cross {
+  position: relative;
+  width: min(72vw, 280px);
+  aspect-ratio: 1;
+  filter: drop-shadow(0 14px 16px rgba(23, 36, 59, 0.12));
+}
+
+.remote-cross::before,
+.remote-cross::after {
+  content: "";
+  position: absolute;
+  background: #fff;
+  border-radius: 36px;
+}
+
+.remote-cross::before {
+  width: 36%;
+  height: 100%;
+  left: 32%;
+  top: 0;
+}
+
+.remote-cross::after {
+  width: 100%;
+  height: 36%;
+  left: 0;
+  top: 32%;
+}
+
+.remote-key {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1d4ed8;
+  border-radius: 36px;
+}
+
+.remote-key[data-place="up"] { top: 0; left: 32%; width: 36%; height: 32%; }
+.remote-key[data-place="down"] { bottom: 0; left: 32%; width: 36%; height: 32%; }
+.remote-key[data-place="left"] { left: 0; top: 32%; width: 32%; height: 36%; }
+.remote-key[data-place="right"] { right: 0; top: 32%; width: 32%; height: 36%; }
+
+.remote-key.is-held {
+  background: #2563eb;
+  color: white;
+}
+
+.remote-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: min(100%, 360px);
+}
+
+.remote-start,
+.remote-stop {
+  border: 0;
+  border-radius: 16px;
+  min-height: 58px;
+  color: white;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.remote-start {
+  background: #16a34a;
+  box-shadow: 0 7px 0 #15803d;
+}
+
+.remote-stop {
+  background: #dc2626;
+  box-shadow: 0 7px 0 #b91c1c;
+}
+
+.remote-start.is-held,
+.remote-stop.is-held {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(23, 36, 59, 0.18);
+}
+
+.remote-note {
+  margin: 0;
+  min-height: 1.2em;
+  color: #5c6b80;
+  font-size: 14px;
+  text-align: center;
+}
+
+.remote-sensors {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 360px);
+}
+
+.remote-radio {
+  display: grid;
+  grid-template-columns: 72px 1fr 1fr;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #e1e8f0;
+  border-radius: 14px;
+  background: white;
+}
+
+.remote-radio > span {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.remote-radio label:has(input:checked) {
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 650;
+}
+
+.remote-radio label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  border-radius: 999px;
+  background: #f4f7fb;
+  font-size: 14px;
+}
+
+.remote-radio input {
+  accent-color: #2563eb;
+  width: 18px;
+  height: 18px;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;

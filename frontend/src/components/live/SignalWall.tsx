@@ -44,7 +44,15 @@ export default function SignalWall({
         <div className="wave-figure">
           <SignalScope samples={snapshot?.acoustic_waveform ?? []} label="Acoustic waveform" instrument color="#2563eb" />
         </div>
-        <p className="quiet-line">{listening ? 'Listening' : acoustic?.rms_dbfs == null ? 'No samples' : `${acoustic.rms_dbfs.toFixed(1)} dBFS`}</p>
+        <p className="quiet-line">
+          {acoustic?.source_mode === 'live'
+            ? `Live USB mic · ${acoustic.rms_dbfs == null ? 'measuring' : `${acoustic.rms_dbfs.toFixed(1)} dBFS`} · local shape rules, not the NVIDIA model`
+            : listening
+              ? 'Listening'
+              : acoustic?.rms_dbfs == null
+                ? 'No samples'
+                : `${acoustic.rms_dbfs.toFixed(1)} dBFS`}
+        </p>
       </Panel>
       <Panel
         className="wave-card"

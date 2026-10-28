@@ -4,7 +4,7 @@ import json
 import math
 import time
 
-from app.config.geometry import search_lattice
+from app.config.geometry import load_geometry, search_lattice
 from app.services.clock import utc_now
 from app.state import get_state
 
@@ -35,15 +35,15 @@ def apply_rover_line(line: str) -> bool:
         return False
     state = get_state()
     state.motor_tracking = True
-    cells = {cell["id"]: cell for cell in (state.scan_route or search_lattice())}
+    places = _known_places(state)
     status = payload.get("status")
     if status == "grid_started":
         state.pose_trail = []
         state.rover_leg = None
         return True
     if status == "moving":
-        origin = cells.get(str(payload.get("from")))
-        dest = cells.get(str(payload.get("to")))
+        origin = places.get(str(payload.get("from")))
+        dest = places.get(str(payload.get("to")))
         if origin is None or dest is None:
             return False
         heading = math.degrees(
@@ -69,11 +69,13 @@ def apply_rover_line(line: str) -> bool:
         state.scan_stage = f"MOVE {origin['id']} {dest['id']}"
         return True
     if payload.get("phase") == "hold":
-        cell = cells.get(str(payload.get("cell")))
+        cell = places.get(str(payload.get("cell")))
         if cell is None:
             return False
+        leg = state.rover_leg
+        heading = float(leg["heading_deg"]) if leg else float(cell.get("heading_deg") or 90.0)
         state.rover_leg = None
-        _place(state, cell, float(cell["heading_deg"]), f"Rover reported {cell['id']} on the measured grid.")
+        _place(state, cell, heading, f"Rover reported {cell['id']} at the measured point.")
         state.pose_trail.append(dict(state.pose))
         state.phase = "SCANNING"
         state.scan_stage = f"HOLD {cell['id']}"
@@ -91,6 +93,19 @@ def apply_rover_line(line: str) -> bool:
         )
         return True
     return False
+
+
+def _known_places(state) -> dict:
+    """Grid cells plus the surveyed A, B, and C points from the sand-table plan."""
+    places = {cell["id"]: cell for cell in (state.scan_route or search_lattice())}
+    for point in load_geometry()["measurement_points"]:
+        places[str(point["id"])] = {
+            "id": str(point["id"]),
+            "x_cm": point["x_cm"],
+            "y_cm": point["y_cm"],
+            "heading_deg": 90.0,
+        }
+    return places
 
 
 def public_leg(state) -> dict | None:

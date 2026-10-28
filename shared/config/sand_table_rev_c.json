@@ -103,7 +103,7 @@
     "knocks_per_group": 3,
     "onset_separation_ms": 250,
     "pause_after_group_s": 2,
-    "max_pulse_width_ms": 40,
+    "max_pulse_width_ms": 200,
     "note": "250 ms is the spacing between knock onsets. It is not a command to hold a 12 V solenoid on for 250 ms."
   },
   "validation_protocol": {

@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter
 
 from app.services.search_plan import apply_obstacle, apply_signal, plan_from_photo
@@ -7,7 +9,7 @@ router = APIRouter()
 
 @router.post("/api/search/plan")
 async def search_plan() -> dict:
-    return plan_from_photo()
+    return await asyncio.to_thread(plan_from_photo)
 
 
 @router.post("/api/search/obstacle")

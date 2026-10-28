@@ -65,6 +65,10 @@ def start_dummy() -> dict:
 
 
 def start_listener() -> dict:
+    from app.services.sensor_gates import enabled
+
+    if not enabled("radar"):
+        return {"ok": False, "message": "Radar measuring is off."}
     report = device_report()
     if report["state"] != "ready":
         _mark(report, streaming=False)

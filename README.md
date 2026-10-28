@@ -1,32 +1,22 @@
 # RubbleEcho
 
-A search-and-rescue rover practice dashboard for the sand-table prototype, plus the original 12×12 software simulation.
+A person drives the sand-table rover from a phone. The laptop records what the Raspberry Pi sends. On a knock, a scrape, or radar presence, two NVIDIA models on Nebius Token Factory describe the frame and suggest the next check. The models do not move the car.
 
-This is not a certified rescue system. It does not locate real people, drive hardware by itself, or report a person as alive. Simulated and replayed values are labeled. A device is not marked live just because its card is on screen.
+This is a practice console. It does not locate a buried person or report anyone as alive.
 
-## What you can run today
+## Run
 
-- The legacy simulation: a 12×12 grid, mission controls, and `/ws/telemetry`.
-- The sand-table operations view: a single-viewport Rev C console. Detail dialogs hold the longer diagnostics. Disconnected sensors stay blank.
-- A labeled replay fixture so the operations view can be demonstrated without sensors attached.
-- A Nebius Token Factory client that stays offline until `AI_ENABLED=true`, `NEBIUS_API_KEY`, and `NEBIUS_MODEL_ID` are set in a local `.env`.
-- One camera on the live page. The other two camera labels are not part of this build.
-- `tools/mock_pi/mock_raspberry_pi.py` prints 24 synthetic envelopes with null measurements.
-
-## Windows
-
-From the repository root, in one terminal:
+Laptop, first terminal:
 
 ```powershell
 cd backend
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-$env:OPERATOR_TOKEN = "choose-a-local-token"
-uvicorn main:app --reload --port 8081
+.\.venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8081
 ```
 
-In a second terminal:
+Second terminal:
 
 ```powershell
 cd frontend
@@ -34,56 +24,50 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL, usually `http://localhost:5173/`. The API on port 8081 has no web page. The live console fits a 1440×900 desktop without page scrolling.
+Open `http://localhost:5173/`. On the phone, same Wi-Fi, open `http://<laptop-ip>:5173/#remote`.
 
-Open Help if you need About, How it works, Architecture, or the legacy 12×12 simulation. Open Diagnostics from the device count to paste the operator token. Choose **Load replay** to play the fixture. **STOP** in the header is the software stop. A hardware e-stop still has to cut power. Start Scan stays disabled until the live health policy passes, and it does not command motors.
+Put the Nebius key only in `backend/.env`. Do not commit that file. Set `AI_ENABLED=true`, `NEBIUS_API_KEY`, `NEBIUS_BASE_URL=https://api.tokenfactory.nebius.com/v1/`, `NEBIUS_MODEL_ID=nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, and `NEBIUS_VISION_MODEL_ID=nvidia/Nemotron-3.5-Super-VL`.
 
-Tests:
+If the rover shows up as a generic Bluetooth COM port, set `RUBBLEECHO_MOTOR_PORT` to that port and start the API again. Do not point it at a radar port.
+
+## Drive
+
+The phone page has Start, Stop, four arrows, and On/Off for Radar, Range, Mic, and Cam.
+
+- **Start** opens the live session on the laptop. The car stays still.
+- Hold an arrow. The laptop sends `F`, `B`, `L`, or `R` to the Uno at 9600 baud. Release sends `S`. The Uno also stops about one second after the last character.
+- **Stop** sends `S`.
+- **Off** skips that sensor. Mic Off stops the laptop microphone. Radar Off stops the radar reader.
+
+## Record
+
+The Pi posts to `http://<laptop-ip>:8081/api/pi/ingest`:
+
+```json
+{
+  "radar": {},
+  "ultrasonic": {},
+  "encoders": {},
+  "lines": [],
+  "camera_jpeg_base64": ""
+}
+```
+
+A knock, a scratch/scrape, or radar presence marks the heatmap and stores a report. If Cam is On and a JPEG was posted, the vision model describes that frame, then the reasoning model suggests the next check. Neither call drives the motors.
+
+The scripted demo is a separate button on the laptop. It does not move the rover, and it rejects Pi posts while it is running.
+
+Diagnostics shows a device connected only after a real sample. One camera is on the live page. Acoustic classes from the USB mic are local shape rules, not the NVIDIA model.
+
+## Check
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m pytest -q
 cd ..\frontend
-npm run build
 npm run lint
-npm run test:e2e
 ```
-
-`npm run test:e2e` starts Vite and checks the live console at 1920×1080, 1440×900, and 1366×768. The API should already be on port 8081. The first run downloads Chromium.
-
-## Raspberry Pi 4
-
-Use a virtual environment. Do not install these packages into system Python on Raspberry Pi OS Bookworm without checking the OS packages first.
-
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-export OPERATOR_TOKEN=choose-a-local-token
-uvicorn main:app --reload --port 8081
-```
-
-Start the frontend the same way as on Windows, or open a laptop browser against the Pi if you bind the servers deliberately. Hardware extras are listed in `backend/requirements-hardware.txt` and were not installed as part of the laptop test run. Install `opencv-contrib-python-headless` only. Do not also install `opencv-python`.
-
-Optional live model check, after exporting the key and a catalog-confirmed NVIDIA model id:
-
-```bash
-export NEBIUS_API_KEY=...
-export NEBIUS_MODEL_ID=...
-export NEBIUS_BASE_URL=https://api.tokenfactory.nebius.com/v1/
-export RUBBLEECHO_AI_LIVE=1
-py scripts/check_nebius.py --live
-```
-
-## Layout
-
-- `backend/simulation.py` is the legacy demo.
-- `backend/app` is the operations service.
-- `shared/config/sand_table_rev_c.json` is the table geometry.
-- `fixtures/replay/sample_trial` is synthetic replay data.
-- `docs/` has the hardware checklist, validation protocol, and Devpost draft.
 
 ## License
 
-MIT. See `LICENSE`. Confirm that choice with the team before a public submission.
+MIT. See `LICENSE`.

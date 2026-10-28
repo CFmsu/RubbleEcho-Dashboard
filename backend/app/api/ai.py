@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends
 
 from app.ai.nebius_client import ai_status, healthcheck
@@ -16,13 +18,13 @@ async def status() -> dict:
 
 @router.post("/api/ai/healthcheck")
 async def check(_: None = Depends(require_operator)) -> dict:
-    result = healthcheck()
+    result = await asyncio.to_thread(healthcheck)
     result["nvidia_online"] = bool(result.get("nvidia_online"))
     return result
 
 
 @router.post("/api/ai/reason")
 async def reason(_: None = Depends(require_operator)) -> dict:
-    result = request_reason()
+    result = await asyncio.to_thread(request_reason)
     result["nvidia_online"] = bool(result.get("nvidia_online"))
     return result

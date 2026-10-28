@@ -16,6 +16,7 @@ export default function OperatorControls({
   onRadarDummy,
   onRadarLive,
   onPiMimic,
+  onScripted,
   onPlan,
   onObstacle,
   onSignal,
@@ -33,6 +34,7 @@ export default function OperatorControls({
   onRadarDummy: () => void
   onRadarLive: () => void
   onPiMimic: () => void
+  onScripted: () => void
   onPlan: () => void
   onObstacle: () => void
   onSignal: () => void
@@ -62,6 +64,9 @@ export default function OperatorControls({
         </span>
         <span title={connected ? 'Play the lines a Raspberry Pi would send. No Pi is connected.' : 'Backend is not connected.'}>
           <button type="button" className="btn" disabled={!connected} onClick={onPiMimic}>{piMimic ? 'Stop mimic' : 'Mimic Pi'}</button>
+        </span>
+        <span title="Play the saved sensor script. This does not move the rover and it is not a Raspberry Pi.">
+          <button type="button" className="btn" disabled={!connected} onClick={onScripted}>Scripted demo</button>
         </span>
         <span title={connected ? 'Show the MR60BHA2 fields with dummy samples until the module is plugged in.' : 'Backend is not connected.'}>
           <button type="button" className="btn" disabled={!connected || radarLive} onClick={onRadarDummy}>{radarDummy ? 'Stop dummy' : 'Dummy radar'}</button>

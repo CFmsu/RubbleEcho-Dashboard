@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 
 from app.api.auth import require_operator
 from app.services.mission import capture_camera, snapshot
+from app.services.pi_ingest import posted_frame
 
 router = APIRouter()
 
@@ -26,6 +28,9 @@ async def capture(camera_id: str, _: None = Depends(require_operator)) -> dict:
 
 
 @router.get("/api/camera/{camera_id}/latest")
-async def latest(camera_id: str) -> dict:
-    result = capture_camera(camera_id)
-    raise HTTPException(status_code=result["status"], detail=result)
+async def latest(camera_id: str) -> Response:
+    frame = posted_frame(camera_id)
+    if frame is None:
+        result = capture_camera(camera_id)
+        raise HTTPException(status_code=result["status"], detail=result)
+    return Response(content=frame, media_type="image/jpeg")

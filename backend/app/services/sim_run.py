@@ -79,22 +79,6 @@ def start_run(schedule: bool = True) -> dict:
     _steps = 0
     state.scan_route = search_lattice()
     _sync_trial(state)
-    from app.drivers.motor_link import transmit
-
-    link = transmit("A")
-    if link["sent"]:
-        state.add_event(
-            device="arduino_uno",
-            sensor="motors",
-            summary=(
-                f"Rover auto started on {link['port']}. "
-                "The route is the measured 101 by 76 cm grid. No ultrasonic is on this rover."
-            ),
-            quality="transmitted",
-            captured_at_utc=utc_now(),
-            value=None,
-            unit=None,
-        )
     if schedule:
         _arm(0.05)
     return {
@@ -102,7 +86,7 @@ def start_run(schedule: bool = True) -> dict:
         "status": 200,
         "mode": "SIMULATION",
         "trial_id": state.trial_id,
-        "rover": link,
+        "rover": {"sent": False, "port": None, "command": None, "reason": "simulation_does_not_drive"},
     }
 
 

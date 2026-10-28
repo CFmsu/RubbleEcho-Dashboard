@@ -168,15 +168,15 @@ function useShownDistance(distanceCm: number | null): number | null {
   useEffect(() => {
     if (distanceCm == null) {
       shownRef.current = null
-      setShown(null)
-      return
+      const frame = requestAnimationFrame(() => setShown(null))
+      return () => cancelAnimationFrame(frame)
     }
     const from = shownRef.current ?? distanceCm
     const to = distanceCm
     if (Math.abs(from - to) < 0.05 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       shownRef.current = to
-      setShown(to)
-      return
+      const frame = requestAnimationFrame(() => setShown(to))
+      return () => cancelAnimationFrame(frame)
     }
     const started = performance.now()
     let frame = 0

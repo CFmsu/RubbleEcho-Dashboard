@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import SandTableFigure from '../../components/live/SandTableFigure'
 import { useGeometry } from '../../hooks/useGeometry'
 import type { OperationsSnapshot } from '../../types/operations'
@@ -84,19 +84,16 @@ function spoken(snapshot: OperationsSnapshot, ranked: CellRow[]): string {
 export default function ReasoningPage({ snapshot }: { snapshot: OperationsSnapshot | null }) {
   const { geometry, error } = useGeometry()
   const ranked = useMemo(() => (snapshot ? cellRows(snapshot) : []), [snapshot])
-  const [selected, setSelected] = useState('')
+  const named = snapshot?.reasoning?.recommendation.point_id
+  const lead = named && ranked.some((row) => row.id === named) ? named : ranked[0]?.id ?? ''
+  const [picked, setPicked] = useState<string | null>(null)
+  const selected = picked && ranked.some((row) => row.id === picked) ? picked : lead
   const [photoFailed, setPhotoFailed] = useState(false)
-
-  useEffect(() => {
-    if (ranked.some((row) => row.id === selected)) return
-    const named = snapshot?.reasoning?.recommendation.point_id
-    const lead = named && ranked.some((row) => row.id === named) ? named : ranked[0]?.id ?? ''
-    setSelected(lead)
-  }, [ranked, selected, snapshot?.reasoning?.recommendation.point_id])
-
-  useEffect(() => {
+  const [photoPoint, setPhotoPoint] = useState(selected)
+  if (photoPoint !== selected) {
+    setPhotoPoint(selected)
     setPhotoFailed(false)
-  }, [selected])
+  }
 
   const advice = snapshot ? spoken(snapshot, ranked) : 'Waiting for the console.'
   const fallbackPhoto = snapshot?.cameras.find((camera) => camera.image_url)?.image_url ?? ''
@@ -144,7 +141,7 @@ export default function ReasoningPage({ snapshot }: { snapshot: OperationsSnapsh
       <div className="search-layout">
         <section className="search-map">
           {geometry ? (
-            <SandTableFigure geometry={geometry} snapshot={snapshot} showBoxes selectedId={selected} onSelect={setSelected} />
+            <SandTableFigure geometry={geometry} snapshot={snapshot} showBoxes selectedId={selected} onSelect={setPicked} />
           ) : (
             <p>{error || 'Loading the sand table.'}</p>
           )}
@@ -156,7 +153,7 @@ export default function ReasoningPage({ snapshot }: { snapshot: OperationsSnapsh
           <ol className="search-order">
             {ranked.map((row, index) => (
               <li key={row.id}>
-                <button type="button" className={row.id === selected ? 'is-selected' : ''} onClick={() => setSelected(row.id)}>
+                <button type="button" className={row.id === selected ? 'is-selected' : ''} onClick={() => setPicked(row.id)}>
                   <strong>{index + 1}. {row.id}</strong>
                   <span>{row.sound} · {row.radar}{row.range ? ` · about ${row.range} out` : ''}</span>
                   {row.ultrasonic ? <span>The wall was about {row.ultrasonic} ahead</span> : null}

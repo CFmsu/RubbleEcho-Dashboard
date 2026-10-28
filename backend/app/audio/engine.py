@@ -32,19 +32,22 @@ def save_calibration(calibration: AcousticCalibration, report: dict) -> str:
 
 
 class AcousticEngine:
-    def __init__(self, calibration: AcousticCalibration | None = None, source_mode: str = "dummy") -> None:
+    def __init__(self, calibration: AcousticCalibration | None = None, source_mode: str = "dummy", channel_note: str | None = None) -> None:
         self.calibration = calibration or AcousticCalibration()
         self.source_mode = source_mode
+        self.channel_note = channel_note or "4 raw mic channels. Processed mix and loopback are not used. No piezo in this path."
         self.filter = StreamingBandpass()
         self.hops = HopAnalyzer()
         self.tracker = EventTracker(self.calibration, source_mode=source_mode)
         self._recent = np.zeros(0, dtype=np.float64)
+        self._last: dict | None = None
 
     def push(self, mics: np.ndarray) -> list[dict]:
         filtered = self.filter.process(mics)
         self._remember(filtered)
         events = []
         for features in self.hops.push(filtered):
+            self._last = features
             for event in self.tracker.feed(features):
                 events.append(self._decorate(event))
         return events
@@ -56,28 +59,51 @@ class AcousticEngine:
         rms = float(np.sqrt(np.mean(self._recent * self._recent))) if self._recent.size else 0.0
         level = None if rms <= 1e-12 else float(20.0 * np.log10(rms))
         return {
-            "class": "listening",
+            "class": self._live_class(),
             "rms_dbfs": level,
             "peak_dbfs": None,
             "model_score": None,
-            "score_semantics": "shape_rule_on_synthetic_calibration",
+            "score_semantics": "local_shape_rules_not_nvidia",
             "origin_unknown": True,
             "site_id": None,
             "source_mode": self.source_mode,
             "duration_ms": 0.0,
             "onset": False,
-            "channel": None,
+            "channel": None if self._last is None else self._last.get("channel"),
             "tdoa": None,
-            "tdoa_summary": "no impulse in this hop",
-            "channel_note": "4 raw mic channels. Processed mix and loopback are not used. No piezo in this path.",
+            "tdoa_summary": "no completed impulse in this hop",
+            "channel_note": self.channel_note,
             "training_status": self.calibration.training_status,
             "hardware_calibrated": False,
             "limitations": [
                 "thresholds_fit_on_synthetic_array_clips",
                 "no_piezo_veto",
-                "requires_raw_6_channel_firmware",
+                "not_an_nvidia_audio_model",
             ],
         }
+
+    def _live_class(self) -> str:
+        features = self._last
+        if features is None:
+            return "listening"
+        floor = self.tracker._floor()
+        if floor is None:
+            return "listening"
+        rms = float(features["rms"])
+        rise = rms / max(floor, 1e-8)
+        cal = self.calibration
+        if rise >= cal.rise_ratio and float(features["crest"]) >= cal.crest_min:
+            return "knock"
+        if (
+            float(features["flatness"]) >= cal.flatness_min
+            and float(features["band_fraction"]) >= cal.band_fraction_min
+            and rise >= cal.scratch_rms_ratio
+            and float(features["crest"]) < cal.crest_min
+        ):
+            return "scratch/scrape"
+        if rise < 1.8:
+            return "silence"
+        return "ambient"
 
     def envelope(self) -> list[float]:
         if self._recent.size == 0:
@@ -117,8 +143,11 @@ def run_mics(samples: np.ndarray, calibration: AcousticCalibration | None = None
 
 def start_listener() -> dict:
     from app.drivers.respeaker import device_report
+    from app.services.sensor_gates import enabled
 
     global _THREAD
+    if not enabled("acoustic"):
+        return {"ok": False, "message": "Acoustic measuring is off."}
     report = device_report()
     if report["state"] != "ready":
         _mark_device(report, streaming=False)
@@ -127,17 +156,18 @@ def start_listener() -> dict:
             "message": report["error"] or "XVF3800 raw stream is not available.",
             "report": report,
         }
+    processed = report.get("firmware_mode") == "processed_voice_stream"
     with _LISTEN_LOCK:
         if _THREAD is not None and _THREAD.is_alive():
             return {"ok": True, "message": "Already listening on the XVF3800.", "report": report}
         _STOP.clear()
         _THREAD = threading.Thread(target=_listen_loop, args=(report,), name="xvf3800-listen", daemon=True)
         _THREAD.start()
-    return {
-        "ok": True,
-        "message": "Listening on 4 raw channels at 16000 Hz. Processed mix discarded. No piezo.",
-        "report": report,
-    }
+    if processed:
+        message = "Listening to the USB processed mix at 16000 Hz. Local shape rules label silence, ambient, knock, or scratch. This is not an NVIDIA audio model."
+    else:
+        message = "Listening on 4 raw channels at 16000 Hz. Local shape rules label the sound. Processed mix discarded. No piezo."
+    return {"ok": True, "message": message, "report": report}
 
 
 def stop_listener() -> dict:
@@ -155,11 +185,14 @@ def stop_listener() -> dict:
 def _listen_loop(report: dict) -> None:
     from app.drivers.respeaker import iter_mic_blocks
 
-    engine = AcousticEngine(load_calibration(), source_mode="live")
-    _mark_device(report, streaming=True)
-    _publish(engine.listening_view(), engine.envelope(), None, engine.waveform())
+    note = report.get("note") or "Live microphone. Local shape rules, not an NVIDIA audio model."
+    engine = AcousticEngine(load_calibration(), source_mode="live", channel_note=note)
+    started = False
     try:
         for block in iter_mic_blocks(_STOP):
+            if not started:
+                _mark_device(report, streaming=True)
+                started = True
             events = engine.push(block)
             if events:
                 for event in events:
@@ -218,7 +251,7 @@ def _mark_device(report: dict, streaming: bool) -> None:
         if streaming and report.get("state") == "ready":
             device["state"] = "connected"
             device["source_mode"] = "live"
-            device["quality"] = "raw_6ch"
+            device["quality"] = "processed_2ch" if report.get("firmware_mode") == "processed_voice_stream" else "raw_6ch"
             device["error"] = None
         else:
             device["state"] = "disconnected"

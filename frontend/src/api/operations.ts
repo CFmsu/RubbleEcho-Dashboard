@@ -61,15 +61,18 @@ export async function startSimulation(): Promise<string> {
   const response = await fetch('/api/mission/run', { method: 'POST' })
   const text = await response.text()
   if (!response.ok) throw new Error(text || 'Run failed')
-  try {
-    const payload = JSON.parse(text) as { rover?: { sent?: boolean; port?: string } }
-    if (payload.rover?.sent && payload.rover.port) {
-      return `Rover started on ${payload.rover.port}. The map follows the cells it reports.`
-    }
-  } catch {
-    // The run still started when the body is not the rover payload.
+  return 'Scripted demo is running. It does not move the rover and it is not Raspberry Pi data.'
+}
+
+export async function startHardware(): Promise<string> {
+  const response = await postJson('/api/mission/hardware', { authorize_motion: true })
+  const text = await response.text()
+  if (!response.ok) throw new Error(text || 'Rover start refused')
+  const payload = JSON.parse(text) as { rover?: { sent?: boolean; port?: string | null } }
+  if (payload.rover?.sent && payload.rover.port) {
+    return `Rover start sent on ${payload.rover.port}. Waiting for Raspberry Pi samples.`
   }
-  return 'Grid running. Connect the rover and press Start again to track it on the map.'
+  return 'Motion authorized. No rover port accepted the start. The dashboard is waiting for Raspberry Pi samples.'
 }
 
 export async function haltSimulation(): Promise<string> {
