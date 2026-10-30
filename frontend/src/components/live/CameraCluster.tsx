@@ -26,8 +26,8 @@ export default function CameraCluster({
   const camera = snapshot?.cameras?.find((item) => item.camera_id === 'camera_top') ?? snapshot?.cameras?.[0] ?? FALLBACK
   const live = camera.state === 'connected' && camera.source_mode === 'live'
   const sample = Boolean(camera.image_url)
-  const title = live ? 'Camera · 1/1 online' : sample ? 'Camera · simulation sample' : 'Camera · 0/1 online'
-  const state = live ? 'LIVE' : sample ? 'SIMULATION' : 'DISCONNECTED'
+  const title = live ? 'Camera · 1/1 online' : sample ? 'Camera · frame' : 'Camera · 0/1 online'
+  const state = live ? 'LIVE' : sample ? 'FRAME' : 'DISCONNECTED'
 
   return (
     <Panel

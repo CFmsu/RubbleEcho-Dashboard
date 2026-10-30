@@ -8,13 +8,16 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 
-DWELL_S = 7.0
+DWELL_S = 12.0
 
 _lock = threading.Lock()
 _timer: threading.Timer | None = None
 _showing = True
+_keep = False
 _cell: dict | None = None
+_deploy_listen = False
 
 
 def publish_allowed() -> bool:
@@ -23,26 +26,70 @@ def publish_allowed() -> bool:
 
 
 def reset_window() -> None:
-    global _showing, _cell
+    global _showing, _cell, _keep, _deploy_listen
     _cancel()
     with _lock:
         _showing = True
+        _keep = False
         _cell = None
+        _deploy_listen = False
 
 
 def grid_started() -> None:
-    """A new run begins with the microphone off until the first full stop."""
+    """The next stop is the 7 second deploy listen on row 1."""
+    global _deploy_listen
     hide_while_moving()
+    _deploy_listen = True
 
 
 def begin_hold(cell: dict, *, dwell_s: float = DWELL_S, use_hardware: bool | None = None) -> None:
-    """Turn the microphone on for this square, then off after the stop."""
-    hardware = (not os.environ.get("PYTEST_CURRENT_TEST")) if use_hardware is None else use_hardware
-    if not hardware:
+    """Mark this square. The microphone array is on the Pi, so this laptop does not record it."""
+    if use_hardware is True:
+        _begin_local_mic(cell, dwell_s)
+        return
+    if os.environ.get("PYTEST_CURRENT_TEST"):
         from app.services.cell_visit import note_hold
 
         note_hold(cell)
         return
+    if not _deploy_listen:
+        from app.services.cell_visit import note_hold
+
+        note_hold(cell)
+        return
+    _arm_pi_listen(cell)
+
+
+def _arm_pi_listen(cell: dict) -> None:
+    """Clear the previous square. The Pi posts the new recording when the stop ends."""
+    global _cell, _keep, _showing, _deploy_listen
+    _cancel()
+    deploy = False
+    with _lock:
+        _cell = cell
+        _keep = False
+        _showing = False
+        deploy = _deploy_listen
+        _deploy_listen = False
+    _clear_display()
+    _mark_listening(True)
+    if deploy:
+        from app.state import get_state
+
+        state = get_state()
+        state.listen_until = time.time() + DWELL_S
+        state.scan_stage = f"DEPLOY {cell.get('id')}"
+
+
+def keep_posted_sample() -> None:
+    """The Pi sample is the measurement for this square. Driving must not wipe it."""
+    global _keep
+    with _lock:
+        _keep = True
+
+
+def _begin_local_mic(cell: dict, dwell_s: float) -> None:
+    """Laptop microphone path kept for the bench test that asks for it."""
     global _cell, _showing
     _cancel()
     with _lock:
@@ -111,6 +158,9 @@ def _mark_listening(on: bool) -> None:
 
 
 def _clear_display() -> None:
+    with _lock:
+        if _keep:
+            return
     from app.state import get_state
 
     state = get_state()

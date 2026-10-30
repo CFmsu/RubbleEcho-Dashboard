@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import json
 
 from app.drivers.radar_mr60bha2 import blank_reading, parse_radar_line, reading_to_observation
 from app.services.clock import utc_now
@@ -48,7 +49,9 @@ def ingest(payload: dict) -> dict:
         elif _apply_radar(radar):
             applied.append("radar")
     ultrasonic = payload.get("ultrasonic")
-    if isinstance(ultrasonic, dict) and ultrasonic.get("distance_cm") is not None:
+    if isinstance(ultrasonic, dict) and (
+        ultrasonic.get("distance_cm") is not None or ultrasonic.get("echo_timeout") is True
+    ):
         if not enabled("ultrasonic"):
             skipped.append("ultrasonic")
         else:
@@ -67,6 +70,9 @@ def ingest(payload: dict) -> dict:
             applied.append("piezo")
     audio = payload.get("audio")
     if isinstance(audio, dict) and isinstance(audio.get("samples"), list) and audio.get("samples"):
+        if isinstance(payload.get("cell"), str):
+            audio = dict(audio)
+            audio["cell"] = payload["cell"]
         if not enabled("acoustic"):
             skipped.append("acoustic")
         elif _apply_audio(audio):
@@ -99,13 +105,67 @@ def ingest(payload: dict) -> dict:
         value=None,
         unit=None,
     )
+    result = {"ok": True, "status": 200, "applied": applied, "skipped": skipped, "mode": state.mode}
+    cell = payload.get("cell")
+    if isinstance(cell, str) and applied:
+        folder = _save_drop(payload)
+        result["folder"] = str(folder)
+        _stamp_cell(cell)
+        result["reasoning"] = {
+            "summary": "Saved this square. Reasoning starts after all nine squares are in.",
+        }
+        return result
+    if payload.get("reason") is True and (applied or skipped):
+        folder = _save_drop(payload)
+        result["folder"] = str(folder)
+        if applied:
+            from app.services.search_plan import apply_signal
+
+            reviewed = apply_signal()
+            reasoning = reviewed.get("reasoning") if isinstance(reviewed, dict) else None
+            result["reasoning"] = reasoning
+            (folder / "reasoning.json").write_text(
+                json.dumps(reasoning, indent=2),
+                encoding="utf-8",
+            )
+        return result
     if applied:
         from app.services.search_plan import _signal_kind
         from app.services.signal_review import schedule_review
 
         if _signal_kind(state) is not None:
             schedule_review()
-    return {"ok": True, "status": 200, "applied": applied, "skipped": skipped, "mode": state.mode}
+    return result
+
+
+def _stamp_cell(cell_id: str) -> None:
+    """Attach the readings just posted to that square. Missing sensors stay absent."""
+    from app.config.geometry import search_lattice
+    from app.services.cell_visit import note_hold
+    from app.services.mic_window import keep_posted_sample
+
+    cell = next((item for item in search_lattice() if item.get("id") == cell_id), None)
+    if cell is None:
+        return
+    keep_posted_sample()
+    note_hold(cell)
+
+
+def _save_drop(payload: dict):
+    """Copy the Pi sample into one folder for this trial."""
+    from app.persistence.store import data_dir
+
+    trial = get_state().trial_id or utc_now().replace(":", "-")
+    folder = data_dir() / "pi_inbox" / str(trial)
+    folder.mkdir(parents=True, exist_ok=True)
+    cell = payload.get("cell")
+    if isinstance(cell, str) and cell:
+        (folder / f"{cell}.json").write_text(json.dumps(payload), encoding="utf-8")
+    for name in ("radar", "ultrasonic", "audio"):
+        body = payload.get(name)
+        if isinstance(body, dict) and body:
+            (folder / f"{name}.json").write_text(json.dumps(body), encoding="utf-8")
+    return folder
 
 
 def _line_allowed(line: str) -> bool:
@@ -132,17 +192,22 @@ def _apply_text(line: str) -> None:
 
 def _apply_audio(audio: dict) -> bool:
     from app.services.briefing import sound_category
-    from app.services.feature_extraction import classify_window
+    from app.services.feature_extraction import classify_window, display_waveform, envelope_dbfs
 
     try:
         samples = [float(sample) for sample in audio["samples"]]
         rate = float(audio.get("sample_rate") or 16000)
     except (TypeError, ValueError):
         return False
-    heard = classify_window(samples, rate, utc_now(), {"site_id": None, "source_mode": "live"})
+    if not samples or rate <= 0:
+        return False
+    heard = classify_window(samples, rate, utc_now(), {"site_id": audio.get("cell"), "source_mode": "live"})
     heard["sound_category"] = sound_category(heard.get("class"))
+    heard["source_mode"] = "live"
     state = get_state()
     state.acoustic = heard
+    state.acoustic_waveform = display_waveform(samples)
+    state.acoustic_envelope = envelope_dbfs(samples)
     state.add_event(
         device="raspberry_pi_4",
         sensor="acoustic",
@@ -152,6 +217,7 @@ def _apply_audio(audio: dict) -> bool:
         value=heard.get("duration_ms"),
         unit="ms",
         acoustic_class=heard.get("class"),
+        site_id=audio.get("cell") if isinstance(audio.get("cell"), str) else None,
     )
     return True
 

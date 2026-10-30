@@ -12,41 +12,46 @@ import LiveOperations from './pages/LiveOperations'
 import RemotePage from './pages/RemotePage'
 import { Architecture } from './pages/Architecture'
 
-type Page = 'live' | 'remote' | 'sensors' | 'heatmap' | 'reasoning' | 'diagnostics' | 'how' | 'about' | 'architecture' | 'legacy'
+type Page = 'mission' | 'assessment' | 'diagnostics'
 
 const NAV: Array<{ id: Page; label: string }> = [
-  { id: 'live', label: 'Live Operations' },
-  { id: 'remote', label: 'Remote' },
-  { id: 'sensors', label: 'Sensors' },
-  { id: 'heatmap', label: 'Heatmap & Trials' },
-  { id: 'reasoning', label: 'AI Reasoning' },
+  { id: 'mission', label: 'Mission' },
+  { id: 'assessment', label: 'Assessment' },
   { id: 'diagnostics', label: 'Diagnostics' },
 ]
 
+function pageFromHash(): Page {
+  const hash = window.location.hash
+  if (hash === '#assessment' || hash === '#reasoning' || hash === '#heatmap' || hash === '#sensors') return 'assessment'
+  if (hash === '#diagnostics' || hash === '#how' || hash === '#about' || hash === '#architecture' || hash === '#legacy') return 'diagnostics'
+  return 'mission'
+}
+
 export default function App() {
-  const [page, setPage] = useState<Page>(window.location.hash === '#remote' ? 'remote' : 'live')
+  const [page, setPage] = useState<Page>(pageFromHash)
+  const [manualOpen, setManualOpen] = useState(window.location.hash === '#remote')
   const [helpOpen, setHelpOpen] = useState(false)
+  const [devOpen, setDevOpen] = useState(window.location.hash === '#legacy')
   const { snapshot, connection } = useOperations()
   const connected = connection === 'connected'
-  const live = page === 'live'
-  const remote = page === 'remote'
 
-  const openHelp = (next: Page) => {
+  const openPage = (next: Page) => {
     setHelpOpen(false)
     setPage(next)
+    const hash = next === 'mission' ? '' : `#${next}`
+    if (window.location.hash !== hash) window.history.replaceState(null, '', hash || window.location.pathname)
   }
 
   return (
-    <div className={remote ? 'app-shell is-remote' : live ? 'app-shell is-live' : 'app-shell is-page'} data-testid={live ? 'app-shell' : undefined}>
-      {remote ? <RemotePage onDashboard={() => setPage('live')} /> : null}
-      {remote ? null : <header className="app-header">
+    <div className={page === 'mission' ? 'app-shell is-live' : 'app-shell is-page'} data-testid={page === 'mission' ? 'app-shell' : undefined}>
+      <header className="app-header">
         <div className="brand">
           <h1>RubbleEcho</h1>
           <span>Sand table Rev C</span>
         </div>
         <nav className="primary-nav" aria-label="Main navigation">
           {NAV.map((item) => (
-            <button key={item.id} type="button" aria-current={page === item.id ? 'page' : undefined} onClick={() => setPage(item.id)}>
+            <button key={item.id} type="button" aria-current={page === item.id ? 'page' : undefined} onClick={() => openPage(item.id)}>
               {item.label}
             </button>
           ))}
@@ -58,28 +63,44 @@ export default function App() {
           <details className="help-menu" open={helpOpen} onToggle={(event) => setHelpOpen(event.currentTarget.open)}>
             <summary>Help</summary>
             <div className="help-pop">
-              <button type="button" onClick={() => openHelp('about')}>About</button>
-              <button type="button" onClick={() => openHelp('how')}>How it works</button>
-              <button type="button" onClick={() => openHelp('architecture')}>Architecture</button>
-              <button type="button" onClick={() => openHelp('legacy')}>Legacy simulation</button>
+              <button type="button" onClick={() => { setHelpOpen(false); setDevOpen(true); openPage('diagnostics') }}>About and fixtures</button>
             </div>
           </details>
           <HeaderStart connected={connected} running={Boolean(snapshot?.run_active)} />
           <HeaderStop connected={connected} />
         </div>
-      </header>}
-      {remote ? null : live ? <LiveOperations snapshot={snapshot} connected={connected} /> : (
+      </header>
+      {page === 'mission' ? (
+        <LiveOperations snapshot={snapshot} connected={connected} onManual={() => setManualOpen(true)} />
+      ) : (
         <main className="page-scroll">
-          {page === 'sensors' ? <SensorsPage snapshot={snapshot} /> : null}
-          {page === 'heatmap' ? <HeatmapPage snapshot={snapshot} /> : null}
-          {page === 'reasoning' ? <ReasoningPage snapshot={snapshot} /> : null}
-          {page === 'diagnostics' ? <DiagnosticsPage snapshot={snapshot} /> : null}
-          {page === 'how' ? <HowItWorks /> : null}
-          {page === 'about' ? <About /> : null}
-          {page === 'architecture' ? <Architecture /> : null}
-          {page === 'legacy' ? <LegacyPanel startOpen /> : null}
+          {page === 'assessment' ? (
+            <>
+              <ReasoningPage snapshot={snapshot} />
+              <HeatmapPage snapshot={snapshot} />
+              <SensorsPage snapshot={snapshot} />
+            </>
+          ) : null}
+          {page === 'diagnostics' ? (
+            <>
+              <DiagnosticsPage snapshot={snapshot} />
+              <details className="ops-card" open={devOpen} onToggle={(event) => setDevOpen(event.currentTarget.open)}>
+                <summary>Developer fixtures</summary>
+                <p className="mt-2 text-sm text-slate-600">Replay and scripted rows are fixtures. They are not live evidence and they do not drive the motors.</p>
+                <HowItWorks />
+                <About />
+                <Architecture />
+                <LegacyPanel startOpen={devOpen} />
+              </details>
+            </>
+          ) : null}
         </main>
       )}
+      {manualOpen ? (
+        <div className="manual-drawer" role="dialog" aria-label="Manual control">
+          <RemotePage onDashboard={() => setManualOpen(false)} />
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -116,9 +137,9 @@ function HeaderStart({ connected, running }: { connected: boolean; running: bool
       type="button"
       className="start-btn"
       disabled={!connected || running}
-      title={running ? 'A session is open. STOP ends it.' : 'Stay stopped, sample each sensor, and send the sound to the model.'}
+      title={running ? 'The nine squares are in progress. STOP ends it.' : 'Send A. The rover drives the nine squares from row 1.'}
       onClick={() => {
-        const allowed = window.confirm('Arm stays stopped on the first square, turns each sensor on in turn, and sends the processed sound to the model. Continue?')
+        const allowed = window.confirm('This sends A. The rover drives the nine squares from row 1, the first square. Continue?')
         if (!allowed) return
         startHardware().then(() => setFailed(false)).catch(() => setFailed(true))
       }}

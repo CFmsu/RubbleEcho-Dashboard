@@ -19,7 +19,31 @@ body,
 }
 
 .app-shell.is-live {
-  grid-template-rows: 56px 46px minmax(0, 1fr) 20px;
+  grid-template-rows: 60px auto minmax(0, 1fr) 20px;
+}
+
+.mic-notice {
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #f59e0b;
+  color: #1c1404;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.manual-drawer {
+  position: fixed;
+  z-index: 30;
+  top: 68px;
+  right: 16px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 84px);
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #d5deea;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(16, 27, 48, 0.18);
 }
 
 .app-shell.is-page {
@@ -191,7 +215,7 @@ body,
 }
 
 .live-primary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .live-secondary {
@@ -1038,19 +1062,18 @@ a.btn {
 }
 
 .remote-pad {
-  height: 100%;
+  min-height: 100%;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   padding: 16px 18px 22px;
-  touch-action: none;
+  touch-action: manipulation;
   user-select: none;
   background: #f3f5f8;
-  overflow: hidden;
-  overscroll-behavior: none;
+  overflow: visible;
 }
 
 .remote-back {
@@ -1065,7 +1088,8 @@ a.btn {
 
 .remote-cross {
   position: relative;
-  width: min(72vw, 280px);
+  width: min(64vw, 220px);
+  flex: 0 0 auto;
   aspect-ratio: 1;
   filter: drop-shadow(0 14px 16px rgba(23, 36, 59, 0.12));
 }
@@ -1204,6 +1228,68 @@ a.btn {
   accent-color: #2563eb;
   width: 18px;
   height: 18px;
+}
+
+.remote-block {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 360px);
+  padding: 10px;
+  border: 1px solid #e1e8f0;
+  border-radius: 14px;
+  background: white;
+}
+
+.remote-block h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.remote-speed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.remote-speed input[type='range'] {
+  flex: 1;
+  accent-color: #2563eb;
+}
+
+.remote-row {
+  display: flex;
+  gap: 8px;
+}
+
+.remote-row button,
+.remote-job {
+  flex: 1;
+  min-height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: #e8eef8;
+  color: #1d4ed8;
+  font-size: 14px;
+  font-weight: 700;
+  touch-action: none;
+}
+
+.remote-row button.is-held,
+.remote-job.is-held {
+  background: #2563eb;
+  color: white;
+}
+
+.remote-job {
+  background: #16a34a;
+  color: white;
+}
+
+.remote-job.collect {
+  background: #0f766e;
 }
 
 .modal-overlay {

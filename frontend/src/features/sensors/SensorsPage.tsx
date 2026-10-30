@@ -22,7 +22,6 @@ export default function SensorsPage({ snapshot }: { snapshot: OperationsSnapshot
   const acoustic = snapshot?.acoustic
   const piezo = snapshot?.piezo
   const trace = snapshot?.rover_trace
-  const camera = snapshot?.cameras?.[0]
 
   return (
     <div className="reading-deck">
@@ -34,19 +33,6 @@ export default function SensorsPage({ snapshot }: { snapshot: OperationsSnapshot
       >
         {geometry ? <PointIndex geometry={geometry} snapshot={snapshot} /> : <p className="quiet-line">Table geometry is unavailable.</p>}
       </Reading>
-      <Reading title="Camera" headline={camera?.state ?? 'disconnected'}>
-        <div className="preview preview-detail">
-          <span className="preview-frame">
-            {camera?.image_url ? <img src={camera.image_url} alt="Camera sample" /> : <span className="preview-copy">No stream</span>}
-          </span>
-        </div>
-        <FactGrid rows={[
-          ['State', camera?.state ?? 'disconnected'],
-          ['Source', camera?.source_mode ?? 'unavailable'],
-          ['Frame', clockLabel(camera?.last_frame_utc)],
-          ['Size', camera?.width && camera?.height ? `${camera.width} × ${camera.height}` : '—'],
-        ]} />
-      </Reading>
       <Reading
         title="60 GHz radar"
         headline={radar?.distance_m == null ? 'No range' : `${radar.distance_m} m · ${text(radar.human_presence)} presence`}
@@ -56,8 +42,6 @@ export default function SensorsPage({ snapshot }: { snapshot: OperationsSnapshot
             distanceM={radar?.distance_m}
             presence={radar?.human_presence}
             targets={radar?.num_targets}
-            breath={radar?.breath_rate_bpm}
-            heart={radar?.heart_rate_bpm}
             running={radarRunning(snapshot)}
           />
         </div>
@@ -69,7 +53,7 @@ export default function SensorsPage({ snapshot }: { snapshot: OperationsSnapshot
           ['Targets', radar?.num_targets == null ? '—' : String(radar.num_targets)],
           ['Breath phase', text(radar?.breath_phase)],
           ['Heart phase', text(radar?.heart_phase)],
-          ['Source', radar?.source_mode ?? 'unavailable'],
+          ['Source', radar?.source_mode ?? 'live'],
           ['Bearing', 'not reported by this module'],
           ['Last sample', clockLabel(radar?.captured_at_utc)],
         ]} />
@@ -80,7 +64,7 @@ export default function SensorsPage({ snapshot }: { snapshot: OperationsSnapshot
           ['Direction', range?.direction ?? '—'],
           ['Quality', range?.quality ?? 'no sample'],
           ['Echo timeout', range ? (range.echo_timeout ? 'yes' : 'no') : '—'],
-          ['Source', range?.source_mode ?? 'unavailable'],
+          ['Source', range?.source_mode ?? 'live'],
           ['Meaning', 'Obstacle range in front of the sensor. Not depth through rubble.'],
         ]} />
       </Reading>
@@ -90,7 +74,7 @@ export default function SensorsPage({ snapshot }: { snapshot: OperationsSnapshot
           ['Class', acoustic?.class ?? 'No samples'],
           ['Level', acoustic?.rms_dbfs == null ? '—' : `${acoustic.rms_dbfs} dBFS`],
           ['Site', acoustic?.site_id ?? '—'],
-          ['Source', acoustic?.source_mode ?? 'unavailable'],
+          ['Source', acoustic?.source_mode ?? 'live'],
           ['Channels', acoustic?.channel_note ?? 'Not enumerated.'],
         ]} />
       </Reading>

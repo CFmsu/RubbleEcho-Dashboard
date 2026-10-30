@@ -27,7 +27,7 @@ export default function EvidenceDetailDialog({
     <DetailDialog open={open} onClose={onClose} title="Evidence and reasoning" state={nvidia ? 'LIVE' : 'UNCONFIGURED'}>
       <p className="summary-title">{evidenceHeadline(snapshot)}</p>
       <p>{reasoning?.narrative?.trim() || reasoning?.summary || 'No briefing yet. Finish a stop, then download the page.'}</p>
-      <p className="quiet-line">{provider}. The page includes the camera frame. It does not move the rover.</p>
+      <p className="quiet-line">{provider}. It does not move the rover.</p>
       <a className="btn primary" href="/api/briefing.pdf">Download the briefing</a>
       <button
         type="button"

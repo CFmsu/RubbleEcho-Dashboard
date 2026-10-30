@@ -1,7 +1,9 @@
 import pytest
 
-from app.services import pi_ingest, sensor_gates
+from app.services import pi_ingest, pi_link, sensor_gates
 from app.services.auto_listen import reset_auto
+from app.services.grid_route import reset_route
+from app.services.rover_track import reset_cell_firmware
 from app.services.mic_window import reset_window
 from app.services.radar_link import stop_radar
 from app.services.remote_drive import reset_remote
@@ -24,6 +26,9 @@ def isolate_state(monkeypatch, tmp_path):
     reset_auto()
     reset_remote()
     reset_window()
+    reset_route()
+    reset_cell_firmware()
+    pi_link.reset()
     pi_ingest._frame.clear()
     sensor_gates._gates = {name: True for name in sensor_gates.SENSORS}
     get_state().reset()
@@ -33,6 +38,9 @@ def isolate_state(monkeypatch, tmp_path):
     reset_auto()
     reset_remote()
     reset_window()
+    reset_route()
+    reset_cell_firmware()
+    pi_link.reset()
     pi_ingest._frame.clear()
     sensor_gates._gates = {name: True for name in sensor_gates.SENSORS}
     get_state().reset()

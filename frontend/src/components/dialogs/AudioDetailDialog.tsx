@@ -19,9 +19,7 @@ export default function AudioDetailDialog({
     <DetailDialog open={open} onClose={onClose} title="ReSpeaker XVF3800" state={panelState(acoustic?.source_mode)}>
       <SignalScope samples={wave} label="Acoustic waveform" large />
       {values.length === 0 ? null : <Envelope values={values} />}
-      {snapshot?.mode === 'simulation' && acoustic ? (
-        <audio controls src="/api/simulation/audio.wav" />
-      ) : null}
+      <audio controls src="/api/microphone/audio.wav" />
       <FactGrid
         rows={[
           ['Class', acoustic?.class ?? 'No samples'],
@@ -29,7 +27,7 @@ export default function AudioDetailDialog({
           ['Score', acoustic?.model_score == null ? 'Uncalibrated' : `${acoustic.model_score} (${acoustic.score_semantics})`],
           ['Origin', acoustic?.origin_unknown === false ? 'attributed' : 'unknown'],
           ['Site', acoustic?.site_id ?? '—'],
-          ['Source', acoustic?.source_mode ?? 'unavailable'],
+          ['Source', acoustic?.source_mode ?? 'live'],
           ['Channels', acoustic?.channel_note ?? 'Not enumerated. Four raw traces are not claimed.'],
           ['Array delay', acoustic?.tdoa_summary ?? '—'],
         ]}

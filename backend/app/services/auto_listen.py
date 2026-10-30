@@ -9,11 +9,10 @@ import time
 from app.services.clock import utc_now
 from app.state import get_state
 
-_ORDER = ("radar", "ultrasonic", "camera", "acoustic")
+_ORDER = ("radar", "ultrasonic", "acoustic")
 _LABEL = {
     "radar": "Radar",
     "ultrasonic": "Range",
-    "camera": "Camera",
     "acoustic": "Mic",
 }
 _lock = threading.Lock()

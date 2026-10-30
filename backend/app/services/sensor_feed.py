@@ -14,7 +14,9 @@ def apply_line(line: str) -> dict:
     handled = handle_line(line)
     kind = handled.get("kind")
     observation = handled.get("observation")
-    if kind == "ultrasonic" and isinstance(observation, dict) and observation.get("distance_cm") is not None:
+    if kind == "ultrasonic" and isinstance(observation, dict) and (
+        observation.get("distance_cm") is not None or observation.get("echo_timeout")
+    ):
         _ultrasonic(observation)
     elif kind == "piezo" and isinstance(observation, dict):
         _piezo(observation)
@@ -29,17 +31,19 @@ def _ultrasonic(observation: dict) -> None:
     state = get_state()
     sample = dict(observation)
     sample["source_mode"] = "live"
-    sample["valid"] = True
+    timed_out = bool(sample.get("echo_timeout")) or sample.get("distance_cm") is None
+    sample["valid"] = not timed_out
     state.ultrasonic = sample
     place_echo(state)
     _touch(state, "hc_sr04")
-    if state.run_active:
+    if state.run_active and not timed_out:
         note_live_obstacle()
         place_echo(state)
+    summary = "Ultrasonic echo timed out." if timed_out else f"Live ultrasonic {sample.get('distance_cm')} cm."
     state.add_event(
         device="hc_sr04",
         sensor="ultrasonic",
-        summary=f"Live ultrasonic {sample.get('distance_cm')} cm.",
+        summary=summary,
         quality=sample.get("quality") or "sensor",
         captured_at_utc=utc_now(),
         value=sample.get("distance_cm"),

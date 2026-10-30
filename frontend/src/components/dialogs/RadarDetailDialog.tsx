@@ -28,8 +28,6 @@ export default function RadarDetailDialog({
           distanceM={radar?.distance_m}
           presence={radar?.human_presence}
           targets={radar?.num_targets}
-          breath={radar?.breath_rate_bpm}
-          heart={radar?.heart_rate_bpm}
           running={radarRunning(snapshot)}
         />
       </div>
@@ -50,7 +48,7 @@ export default function RadarDetailDialog({
           ['Stale', radar ? String(radar.stale) : '—'],
           ['Firmware', radar?.firmware ?? '—'],
           ['Last sample', clockLabel(radar?.captured_at_utc)],
-          ['Source', radar?.source_mode ?? 'unavailable'],
+          ['Source', radar?.source_mode ?? 'live'],
           ['Case', radar?.case_name ?? '—'],
           ['Bearing', 'not reported by this module'],
           ['Spatial target', radar?.spatial_coordinates_used && radar.target_xy_m ? radar.target_xy_m.join(', ') + ' m' : 'not plotted'],

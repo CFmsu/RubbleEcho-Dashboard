@@ -26,7 +26,7 @@ export default function ReasoningSummary({
     ['Acoustic', snapshot?.acoustic ? panelState(snapshot.acoustic.source_mode) : 'No sample'],
     ['Piezo', snapshot?.piezo ? panelState(snapshot.piezo.source_mode) : 'No sample'],
     ['Radar', snapshot?.radar ? panelState(snapshot.radar.source_mode, snapshot.radar.stale) : 'No sample'],
-    ['Camera', (snapshot?.streaming_camera_count ?? 0) > 0 ? 'LIVE' : snapshot?.cameras?.some((camera) => camera.image_url) ? 'SIMULATION' : 'No sample'],
+    ['Camera', snapshot?.cameras?.some((camera) => camera.source_mode === 'live' && camera.state === 'connected') ? 'LIVE' : snapshot?.cameras?.some((camera) => camera.image_url) ? 'FRAME' : 'No sample'],
     ['Ultrasonic', snapshot?.ultrasonic ? panelState(snapshot.ultrasonic.source_mode) : 'No sample'],
   ] as const
 
@@ -45,7 +45,7 @@ export default function ReasoningSummary({
             <span key={label} className="chip">{label} · {value}</span>
           ))}
         </p>
-        <p className="quiet-line">{reasoning?.narrative?.trim() ? 'The briefing names the first square and carries the camera frame.' : recommendation}</p>
+        <p className="quiet-line">{reasoning?.narrative?.trim() ? 'The briefing names the first square.' : recommendation}</p>
         <p className="quiet-line">{ai}</p>
         <a className="btn" href="/api/briefing.pdf">Download the briefing</a>
       </div>

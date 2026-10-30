@@ -18,7 +18,7 @@ function classFrom(summary: string | undefined): string {
 }
 
 function cellRows(snapshot: OperationsSnapshot): CellRow[] {
-  return snapshot.heatmap_points
+  const rows = snapshot.heatmap_points
     .filter((point) => point.sample_count > 0)
     .map((point) => {
       const readings = point.readings
@@ -44,7 +44,10 @@ function cellRows(snapshot: OperationsSnapshot): CellRow[] {
         ultrasonic: typeof readings?.ultrasonic_cm === 'number' ? `${readings.ultrasonic_cm.toFixed(1)} cm` : ultraMatch ? `${ultraMatch[1]} cm` : '',
       }
     })
-    .sort((left, right) => (right.score ?? -1) - (left.score ?? -1))
+  if (snapshot.reasoning?.ranking_allowed === true) {
+    rows.sort((left, right) => (right.score ?? -1) - (left.score ?? -1))
+  }
+  return rows
 }
 
 function plainSound(value: string): string {
@@ -56,16 +59,21 @@ function plainSound(value: string): string {
 }
 
 function plainRadar(value: string): string {
-  if (value === 'presence reported') return 'a pulse showed up'
-  if (value === 'no presence') return 'no pulse'
-  return 'no pulse reading'
+  if (value === 'presence reported') return 'radar presence flag set'
+  if (value === 'no presence') return 'radar presence flag clear'
+  return 'no radar flag'
 }
 
 function spoken(snapshot: OperationsSnapshot, ranked: CellRow[]): string {
   const narrative = snapshot.reasoning?.narrative?.trim()
   const lead = ranked[0]
   const second = ranked[1]
+  if (snapshot.reasoning?.ranking_allowed !== true && snapshot.reasoning?.sufficiency_reason) {
+    const note = snapshot.reasoning.audio_note ? ` ${snapshot.reasoning.audio_note}` : ''
+    return `${snapshot.reasoning.sufficiency_reason}${note}`
+  }
   if (narrative && (!lead || narrative.includes(lead.id))) {
+    if (snapshot.reasoning?.ranking_allowed !== true) return narrative
     if (second && !narrative.includes(second.id)) {
       const kept = narrative
         .split(/(?<=\.)\s+/)
@@ -76,9 +84,13 @@ function spoken(snapshot: OperationsSnapshot, ranked: CellRow[]): string {
     }
     return narrative
   }
-  if (!lead) return 'The rover has not finished a stop yet. When it does, the briefing names the first square and includes the camera frame from that stop.'
-  const follow = second ? ` After that, look at ${second.id}.` : ''
-  return `Walk to ${lead.id} first. We heard ${lead.sound} there, and ${lead.radar}.${follow} Download the briefing for the camera frame from that stop.`
+  if (!lead) return 'No completed observations yet. Start a scan to collect evidence.'
+  if (snapshot.reasoning?.ranking_allowed === false) {
+    return snapshot.reasoning.sufficiency_reason || 'These readings do not distinguish a next square.'
+  }
+  const follow = second && snapshot.reasoning?.ranking_allowed ? ` After that, look at ${second.id}.` : ''
+  const audio = snapshot.reasoning?.audio_note ? ` ${snapshot.reasoning.audio_note}` : ''
+  return `Check ${lead.id} first. Ultrasonic and radar notes: ${lead.radar}.${lead.ultrasonic ? ` Obstacle distance ${lead.ultrasonic}.` : ''}${follow}${audio}`
 }
 
 export default function ReasoningPage({ snapshot }: { snapshot: OperationsSnapshot | null }) {
@@ -88,16 +100,8 @@ export default function ReasoningPage({ snapshot }: { snapshot: OperationsSnapsh
   const lead = named && ranked.some((row) => row.id === named) ? named : ranked[0]?.id ?? ''
   const [picked, setPicked] = useState<string | null>(null)
   const selected = picked && ranked.some((row) => row.id === picked) ? picked : lead
-  const [photoFailed, setPhotoFailed] = useState(false)
-  const [photoPoint, setPhotoPoint] = useState(selected)
-  if (photoPoint !== selected) {
-    setPhotoPoint(selected)
-    setPhotoFailed(false)
-  }
 
   const advice = snapshot ? spoken(snapshot, ranked) : 'Waiting for the console.'
-  const fallbackPhoto = snapshot?.cameras.find((camera) => camera.image_url)?.image_url ?? ''
-  const photo = photoFailed ? fallbackPhoto : selected ? `/api/simulation/camera.png?point=${encodeURIComponent(selected)}` : fallbackPhoto
   const sampled = ranked.length
   const totalSquares = snapshot?.scan_route?.length || sampled
 
@@ -118,22 +122,22 @@ export default function ReasoningPage({ snapshot }: { snapshot: OperationsSnapsh
         <li>
           <span>1</span>
           <div>
-            <strong>Stop and listen</strong>
-            <p>{sampled === 0 ? 'The rover stops in each square of the 3 by 3 grid and listens.' : `${sampled} of ${totalSquares} squares have been checked.`}</p>
+            <strong>Observe</strong>
+            <p>{sampled === 0 ? 'The rover visits each square of the 3 by 3 grid and records the sensors that are connected.' : `${sampled} of ${totalSquares} squares have a stored observation.`}</p>
           </div>
         </li>
         <li>
           <span>2</span>
           <div>
-            <strong>Check for a pulse</strong>
-            <p>After the sound, it checks whether a pulse showed up, then turns when the wall is close.</p>
+            <strong>Assess</strong>
+            <p>After all nine squares, the assessment uses the stored readings, including the microphone.</p>
           </div>
         </li>
         <li>
           <span>3</span>
           <div>
-            <strong>Look at the frame</strong>
-            <p>The briefing includes the camera frame from the square it asks you to walk to.</p>
+            <strong>Review</strong>
+            <p>The briefing names the next square to inspect only when the stored readings distinguish one. It does not confirm a person.</p>
           </div>
         </li>
       </ol>
@@ -149,7 +153,10 @@ export default function ReasoningPage({ snapshot }: { snapshot: OperationsSnapsh
 
         <section className="search-side">
           <h3>Check in this order</h3>
-          {ranked.length === 0 ? <p className="search-empty">The walk has not stored a cell yet.</p> : null}
+          {ranked.length === 0 ? <p className="search-empty">No completed observations yet. Start a scan to collect evidence.</p> : null}
+          {snapshot?.reasoning?.ranking_allowed === false && ranked.length > 0 ? (
+            <p className="search-empty">These readings do not distinguish a next square, so they are not ranked.</p>
+          ) : null}
           <ol className="search-order">
             {ranked.map((row, index) => (
               <li key={row.id}>
@@ -161,12 +168,6 @@ export default function ReasoningPage({ snapshot }: { snapshot: OperationsSnapsh
               </li>
             ))}
           </ol>
-          {photo ? (
-            <figure>
-              <img src={photo} alt={selected ? `Stored frame for ${selected}` : 'Stored frame'} onError={() => setPhotoFailed(true)} />
-              <figcaption>{selected ? `Camera frame from ${selected}.` : 'Camera frame.'} This is the picture that goes on the briefing.</figcaption>
-            </figure>
-          ) : null}
         </section>
       </div>
 

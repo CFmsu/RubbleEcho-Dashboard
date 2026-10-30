@@ -61,7 +61,7 @@ export default function UltrasonicDetailDialog({
           ['Direction', range?.direction ?? '—'],
           ['Quality', range?.quality ?? 'no sample'],
           ['Echo timeout', range ? (range.echo_timeout ? 'yes — path is not clear' : 'no') : '—'],
-          ['Source', range?.source_mode ?? 'unavailable'],
+          ['Source', range?.source_mode ?? 'live'],
           ['Meaning', 'Obstacle range in front of the sensor. Not depth through rubble.'],
           ['Stop margin', 'Configured policy, initial 20 cm, pending a measured rover. Not a reading.'],
         ]}

@@ -15,7 +15,8 @@ def test_live_snapshot_stays_disconnected_without_devices() -> None:
     assert body["ai"]["nvidia_online"] is False
     assert body["radar"] is None
     assert body["ultrasonic"] is None
-    assert body["acoustic"] is None
+    assert body["acoustic"]["source_mode"] == "live"
+    assert body["acoustic"]["class"]
     assert body["piezo"] is None
     assert body["pose"] is None
     assert body["streaming_camera_count"] == 0

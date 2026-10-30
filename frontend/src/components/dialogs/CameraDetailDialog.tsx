@@ -28,7 +28,7 @@ export default function CameraDetailDialog({
       <div className="preview preview-detail">
         <span className="preview-frame">
           {camera?.image_url ? (
-            <img src={camera.image_url} alt="Simulation camera sample" />
+            <img src={camera.image_url} alt="Camera frame" />
           ) : (
             <span className="preview-copy">{camera?.state === 'connected' ? 'No stored frame' : 'No stream'}</span>
           )}
@@ -38,7 +38,7 @@ export default function CameraDetailDialog({
         rows={[
           ['Label', cameraShort(cameraId)],
           ['State', camera?.state ?? 'disconnected'],
-          ['Source', camera?.source_mode ?? 'unavailable'],
+          ['Source', camera?.source_mode ?? 'live'],
           ['FPS', camera?.fps == null ? '—' : String(camera.fps)],
           ['Resolution', camera?.width && camera?.height ? `${camera.width}×${camera.height}` : '—'],
           ['Last frame', clockLabel(camera?.last_frame_utc)],

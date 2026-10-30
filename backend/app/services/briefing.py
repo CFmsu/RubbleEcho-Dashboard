@@ -40,36 +40,39 @@ def narrate(heatmap: list[dict], point_id: str | None) -> str:
     if not lead:
         return (
             "The rover has not finished a stop yet. "
-            "When it does, this briefing will say what was heard, whether a pulse showed up, "
-            "and which square to walk to first. The picture will be the frame from that stop."
+            "When it does, this briefing will name the microphone and the other stored readings "
+            "and which square to check, if those readings distinguish one."
         )
+    from app.services.cell_visit import place_name
+
     chosen = next((point for point in cells if str(point.get("point_id")) == lead), None)
     readings = (chosen or {}).get("readings") if isinstance((chosen or {}).get("readings"), dict) else {}
     sound = _SOUND.get(str(readings.get("sound") or "unknown"), "no clear sound")
     presence = readings.get("radar_presence")
     if presence is True or presence == "present":
-        pulse = "the radar also thought something was moving there"
+        radar_words = "the radar reported a return"
     elif presence is False or presence == "absent":
-        pulse = "the radar stayed quiet there"
+        radar_words = "the radar reported no return"
     else:
-        pulse = "the radar did not give a clear answer there"
-    distance = readings.get("distance_m")
+        radar_words = "the radar added no return of its own"
     range_line = ""
+    distance = readings.get("distance_m")
     if isinstance(distance, (int, float)) and not isinstance(distance, bool):
-        range_line = f" It put that movement about {distance:.1f} meters out."
-    others = [str(point["point_id"]) for point in cells if str(point["point_id"]) != lead][:2]
-    next_line = (
-        f" After that, look at {others[0]}" + (f" and then {others[1]}" if len(others) > 1 else "") + "."
-        if others
-        else ""
-    )
-    from app.services.cell_visit import place_name
-
+        range_line = f" It put that return about {distance:.1f} meters out."
+    ultra = readings.get("ultrasonic_cm")
+    if isinstance(ultra, (int, float)) and not isinstance(ultra, bool):
+        range_line += f" The ultrasonic read {float(ultra):.0f} centimeters ahead."
+    others = [place_name(str(point["point_id"])) for point in cells if str(point["point_id"]) != lead][:2]
+    if not others:
+        next_line = ""
+    elif len(others) == 1:
+        next_line = f" After that, look at {others[0]}."
+    else:
+        next_line = f" After that, look at {others[0]} and then {others[1]}."
     spoken = place_name(lead)
     return (
         f"Walk to {spoken} first. That is the square that stood out. "
-        f"At that stop we heard {sound}, and {pulse}.{range_line} "
-        f"The picture on this page is the camera frame from that stop."
+        f"At that stop we heard {sound}, and {radar_words}.{range_line}"
         f"{next_line} "
         "This is a place to check. It is not a claim that someone is under the sand, "
         "and it does not tell the rover to move."
@@ -111,19 +114,80 @@ def align_narrative(written: str | None, heatmap: list[dict] | None, point_id: s
     return f"{'. '.join(kept)}. After that, look at {second}."
 
 
+_DRIVE = ("r1c1", "r1c2", "r1c3", "r2c3", "r2c2", "r2c1", "r3c1", "r3c2", "r3c3")
+
+
+def _session_points(state: Any) -> list[dict]:
+    points = list(getattr(state, "heatmap", None) or [])
+    if not points:
+        points = list(getattr(state, "cell_captures", None) or [])
+    clean = [point for point in points if isinstance(point, dict) and point.get("point_id")]
+    order = {cell: index for index, cell in enumerate(_DRIVE)}
+    return sorted(clean, key=lambda point: (order.get(str(point.get("point_id")), 100), str(point.get("point_id"))))
+
+
+def _hearing(readings: dict) -> str:
+    raw = readings.get("sound") or readings.get("sound_category")
+    labels = {
+        "knock": "Knock",
+        "periodic_tapping": "Knock",
+        "scratch": "Scrape",
+        "scratch/scrape": "Scrape",
+        "scrape": "Scrape",
+        "ambient": "Room",
+        "room": "Room",
+        "listening": "Room",
+        "silence": "Quiet",
+        "quiet": "Quiet",
+    }
+    if not isinstance(raw, str) or not raw.strip():
+        return "-"
+    return labels.get(raw, raw.replace("_", " ").capitalize())
+
+
+def _reading_table(points: list[dict]) -> list[list[str]]:
+    from app.services.cell_visit import place_name
+
+    rows = [["Square", "Microphone", "Ultrasonic", "Radar", "Return"]]
+    for point in points:
+        readings = point.get("readings") if isinstance(point.get("readings"), dict) else {}
+        ultra = readings.get("ultrasonic_cm")
+        distance = readings.get("distance_m")
+        presence = readings.get("radar_presence")
+        if presence is True or presence == "present":
+            flag = "Set"
+        elif presence is False or presence == "absent":
+            flag = "Clear"
+        else:
+            flag = "-"
+        ultra_text = f"{float(ultra):.0f} cm" if isinstance(ultra, (int, float)) and not isinstance(ultra, bool) else "-"
+        radar_text = f"{float(distance):.2f} m" if isinstance(distance, (int, float)) and not isinstance(distance, bool) else "-"
+        rows.append([place_name(str(point["point_id"])), _hearing(readings), ultra_text, radar_text, flag])
+    return rows
+
+
 def briefing_pdf(state: Any) -> bytes:
     reasoning = state.reasoning if isinstance(state.reasoning, dict) else {}
     written = reasoning.get("narrative")
+    points = _session_points(state)
     point = None
     recommendation = reasoning.get("recommendation")
     if isinstance(recommendation, dict):
         point = recommendation.get("point_id")
-    lead = str(point) if point else _lead_id(state.heatmap)
-    written = align_narrative(written if isinstance(written, str) else None, list(state.heatmap or []), lead)
+    lead = str(point) if point else _lead_id(points)
+    written = align_narrative(written if isinstance(written, str) else None, points, lead)
     image = _photo(state, lead)
-    title = "RubbleEcho briefing"
-    note = "Read this aloud at the table. The picture is the stored frame from the stop named above."
-    return _pdf(title, written.strip(), note, image)
+    trial = getattr(state, "trial_id", None)
+    subtitle = f"Trial {trial}" if trial else "Session report"
+    note = "Read the narration at the table. The table is the stored readings from this session."
+    return _pdf(
+        "RubbleEcho report",
+        written.strip(),
+        note,
+        image,
+        subtitle=subtitle,
+        table=_reading_table(points) if points else None,
+    )
 
 
 def _photo(state: Any, point_id: str | None) -> tuple[int, int, bytes] | None:
@@ -206,31 +270,75 @@ def _paeth(left: int, up: int, upper_left: int) -> int:
     return min(choices)[1]
 
 
-def _pdf(title: str, body: str, note: str, image: tuple[int, int, bytes] | None) -> bytes:
-    lines = _wrap(body, 88)
-    commands = ["BT", "/F1 20 Tf", "54 740 Td", f"({_escape(title)}) Tj", "/F1 12 Tf"]
-    y = 704
-    for line in lines:
-        commands.append(f"1 0 0 1 54 {y} Tm ({_escape(line)}) Tj")
-        y -= 16
-    y -= 8
-    commands.append(f"1 0 0 1 54 {y} Tm ({_escape(note)}) Tj")
+def _pdf(
+    title: str,
+    body: str,
+    note: str,
+    image: tuple[int, int, bytes] | None,
+    *,
+    subtitle: str = "",
+    table: list[list[str]] | None = None,
+) -> bytes:
+    commands = [
+        "0.102 0.165 0.322 rg",
+        "0 746 612 46 re f",
+        "1 1 1 rg",
+        "BT",
+        "/F2 18 Tf",
+        f"1 0 0 1 48 768 Tm ({_escape(title)}) Tj",
+        "/F1 10 Tf",
+        f"1 0 0 1 48 754 Tm ({_escape(subtitle or 'Session report')}) Tj",
+        "ET",
+        "0.12 0.16 0.28 rg",
+        "BT",
+        "/F2 11 Tf",
+        "1 0 0 1 48 726 Tm (Narration) Tj",
+        "ET",
+        "0.16 0.18 0.22 rg",
+        "BT",
+        "/F1 11 Tf",
+    ]
+    y = 708
+    for line in _wrap(body, 86):
+        if y < 360:
+            break
+        commands.append(f"1 0 0 1 48 {y} Tm ({_escape(line)}) Tj")
+        y -= 15
     commands.append("ET")
+    y -= 10
+    if table:
+        y = _table(commands, table, y)
+    y -= 8
+    commands.extend(
+        [
+            "0.35 0.38 0.44 rg",
+            "BT",
+            "/F1 9 Tf",
+            f"1 0 0 1 48 {max(36, y)} Tm ({_escape(note)}) Tj",
+            "ET",
+        ]
+    )
     image_object = None
     if image is not None:
         width, height, rgb = image
-        draw_w = 460
-        draw_h = max(80, int(draw_w * height / max(width, 1)))
-        if draw_h > 280:
-            draw_h = 280
-            draw_w = max(120, int(draw_h * width / max(height, 1)))
-        commands.append(f"q {draw_w} 0 0 {draw_h} 54 {max(48, y - draw_h - 18)} cm /Im0 Do Q")
+        room = max(36, y) - 48
+        draw_w = 220
+        draw_h = max(48, int(draw_w * height / max(width, 1)))
+        if draw_h > room and room > 60:
+            draw_h = room
+            draw_w = max(80, int(draw_h * width / max(height, 1)))
+        image_top = max(36, y) - 18
+        if draw_h + 36 < image_top:
+            commands.append(f"q {draw_w} 0 0 {draw_h} 48 {image_top - draw_h} cm /Im0 Do Q")
         image_object = (width, height, zlib.compress(rgb))
     content = "\n".join(commands).encode("latin-1", errors="replace")
     objects: list[bytes] = []
     objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
     objects.append(b"<< /Type /Pages /Count 1 /Kids [3 0 R] >>")
-    resources = b"/Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >>"
+    resources = (
+        b"/Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> "
+        b"/F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> >>"
+    )
     if image_object is not None:
         resources += b" /XObject << /Im0 6 0 R >>"
     objects.append(
@@ -248,6 +356,39 @@ def _pdf(title: str, body: str, note: str, image: tuple[int, int, bytes] | None)
         ).encode()
         objects.append(header + compressed + b"\nendstream")
     return _assemble(objects)
+
+
+def _table(commands: list[str], rows: list[list[str]], y: int) -> int:
+    columns = (48, 200, 310, 400, 490)
+    height = 16
+    commands.extend(
+        [
+            "0.12 0.16 0.28 rg",
+            "BT",
+            "/F2 11 Tf",
+            f"1 0 0 1 48 {y} Tm (Recorded readings) Tj",
+            "ET",
+        ]
+    )
+    y -= 20
+    for index, row in enumerate(rows[:13]):
+        if y < 56:
+            break
+        if index == 0:
+            commands.append("0.90 0.92 0.95 rg")
+        elif index % 2 == 0:
+            commands.append("0.96 0.97 0.98 rg")
+        else:
+            commands.append("1 1 1 rg")
+        commands.append(f"48 {y - 4} 516 {height} re f")
+        commands.append("0.12 0.16 0.28 rg" if index == 0 else "0.16 0.18 0.22 rg")
+        commands.append("BT")
+        commands.append("/F2 9 Tf" if index == 0 else "/F1 9 Tf")
+        for column, text in zip(columns, row):
+            commands.append(f"1 0 0 1 {column} {y} Tm ({_escape(str(text)[:28])}) Tj")
+        commands.append("ET")
+        y -= height
+    return y - 6
 
 
 def _wrap(text: str, width: int) -> list[str]:

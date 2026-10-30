@@ -19,7 +19,7 @@ export default function ReasoningPanel({ snapshot }: { snapshot: OperationsSnaps
       <p className="mt-2 text-sm">{reasoning?.narrative?.trim() || reasoning?.summary || snapshot?.ai.message || 'No briefing yet. Finish a stop, then download the page.'}</p>
       {snapshot?.scene_note ? <p className="mt-2 text-sm">{snapshot.scene_note.scene}</p> : null}
       <a className="btn primary" href="/api/briefing.pdf">Download the briefing</a>
-      <p className="mt-2 text-xs text-slate-500">The page includes the camera frame from the square it names. It does not move the rover.</p>
+      <p className="mt-2 text-xs text-slate-500">It names a square to check. It does not move the rover.</p>
     </section>
   )
 }

@@ -1,7 +1,16 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.services.remote_drive import drive_command, public_remote, set_mode, set_sensor
+from app.services.remote_drive import (
+    drive_command,
+    public_remote,
+    request_collect,
+    request_deploy,
+    set_mode,
+    set_sensor,
+    set_servo,
+    set_speed,
+)
 
 router = APIRouter()
 
@@ -17,6 +26,16 @@ class SensorBody(BaseModel):
 
 class ModeBody(BaseModel):
     mode: str
+
+
+class SpeedBody(BaseModel):
+    level: int
+
+
+class ServoBody(BaseModel):
+    horn: str
+    move: str
+    speed: int = 3
 
 
 @router.get("/api/remote")
@@ -38,6 +57,32 @@ async def remote_mode(body: ModeBody) -> dict:
     if not result["ok"]:
         raise HTTPException(status_code=result["status"], detail=result)
     return result
+
+
+@router.post("/api/remote/speed")
+async def remote_speed(body: SpeedBody) -> dict:
+    result = set_speed(body.level)
+    if not result["ok"]:
+        raise HTTPException(status_code=result["status"], detail=result)
+    return result
+
+
+@router.post("/api/remote/servo")
+async def remote_servo(body: ServoBody) -> dict:
+    result = set_servo(body.horn, body.move, body.speed)
+    if not result["ok"]:
+        raise HTTPException(status_code=result["status"], detail=result)
+    return result
+
+
+@router.post("/api/remote/deploy")
+async def remote_deploy() -> dict:
+    return request_deploy()
+
+
+@router.post("/api/remote/collect")
+async def remote_collect() -> dict:
+    return request_collect()
 
 
 @router.post("/api/remote/sensor")

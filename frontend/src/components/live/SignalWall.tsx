@@ -1,4 +1,5 @@
 import Panel from '../layout/Panel'
+import SensorCountdown from './SensorCountdown'
 import type { OpenDialog } from '../../types/dialog'
 import type { OperationsSnapshot } from '../../types/operations'
 import RangeLane from './RangeLane'
@@ -14,10 +15,7 @@ export default function SignalWall({
 }) {
   const ultrasonic = snapshot?.ultrasonic
   const acoustic = snapshot?.acoustic
-  const piezo = snapshot?.piezo
   const trace = snapshot?.rover_trace
-  const listening = snapshot?.mission_phase === 'LISTEN'
-
   return (
     <>
       <Panel
@@ -31,46 +29,26 @@ export default function SignalWall({
         <div className="wave-figure">
           <RangeLane distanceCm={ultrasonic?.distance_cm ?? null} echoTimeout={Boolean(ultrasonic?.echo_timeout)} />
         </div>
+        <SensorCountdown snapshot={snapshot} sensor="ultrasonic" />
         <p className="quiet-line">{ultrasonic ? `${ultrasonic.direction} · ${ultrasonic.quality}` : 'Waiting for an echo'} · amber is inside the 20 cm stop</p>
       </Panel>
       <Panel
         className="wave-card"
-        title="Acoustic"
-        state={panelState(acoustic?.source_mode)}
-        expandLabel="acoustic reading"
+        title="Microphone"
+        state={panelState(acoustic?.source_mode ?? 'live')}
+        expandLabel="microphone reading"
         onExpand={() => onOpen({ kind: 'audio' })}
       >
-        <p className="wave-value">{acoustic?.class ?? '—'}</p>
+        <p className="wave-value">{acoustic?.class ?? 'Listening'}</p>
         <div className="wave-figure">
           <SignalScope samples={snapshot?.acoustic_waveform ?? []} label="Acoustic waveform" instrument color="#2563eb" />
         </div>
-        <p className="quiet-line">
-          {acoustic?.source_mode === 'live'
-            ? `Live USB mic · ${acoustic.rms_dbfs == null ? 'measuring' : `${acoustic.rms_dbfs.toFixed(1)} dBFS`} · local shape rules, not the NVIDIA model`
-            : listening
-              ? 'Listening'
-              : acoustic?.rms_dbfs == null
-                ? 'No samples'
-                : `${acoustic.rms_dbfs.toFixed(1)} dBFS`}
-        </p>
-      </Panel>
-      <Panel
-        className="wave-card"
-        title="Vibration"
-        state={panelState(piezo?.source_mode)}
-        expandLabel="vibration reading"
-        onExpand={() => onOpen({ kind: 'vibration' })}
-      >
-        <p className="wave-value">{piezo ? piezo.peak_adc_counts : '—'}<small>{piezo ? ' counts' : ''}</small></p>
-        <div className="wave-figure">
-          <SignalScope samples={snapshot?.piezo_waveform ?? []} label="Piezo contact waveform" instrument color="#b45309" />
-        </div>
-        <p className="quiet-line">{piezo?.contact_state ?? 'No contact sample'}</p>
+        <p className="quiet-line">Microphone available{acoustic?.sound_category ? ` · ${acoustic.sound_category}` : ''}</p>
       </Panel>
       <Panel
         className="wave-card"
         title="Rover"
-        state={trace ? panelState(trace.source_mode) : 'DISCONNECTED'}
+        state={panelState(trace?.source_mode ?? 'live')}
         expandLabel="rover reading"
         onExpand={() => onOpen({ kind: 'rover' })}
       >
@@ -85,7 +63,8 @@ export default function SignalWall({
             secondaryColor="#b45309"
           />
         </div>
-        <p className="quiet-line">{trace ? 'Left in blue, right in amber' : 'Encoders quiet'}</p>
+        <SensorCountdown snapshot={snapshot} sensor="rover pose" />
+        <p className="quiet-line">{trace ? 'Left in blue, right in amber' : 'No encoder sample. Motion follows the drive command.'}</p>
       </Panel>
     </>
   )

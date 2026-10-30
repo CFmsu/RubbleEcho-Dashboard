@@ -3,7 +3,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.api.auth import require_operator
-from app.services.live_run import authorize_motion, open_pi_session
+from app.services.live_run import authorize_motion, open_pi_session, start_grid
 from app.services.mission import arm_solenoid, estop, hold, knock_request, snapshot, submit_command
 from app.services.pi_ingest import ingest
 from app.services.sim_run import halt_run, media_file, start_run
@@ -56,6 +56,8 @@ class PiBody(BaseModel):
     encoders: dict | None = None
     camera_id: str | None = None
     camera_jpeg_base64: str | None = None
+    reason: bool = False
+    cell: str | None = None
 
 
 @router.post("/api/mission/run")
@@ -79,6 +81,57 @@ async def mission_hardware(body: HardwareBody) -> dict:
             },
         )
     return authorize_motion()
+
+
+@router.post("/api/mission/grid")
+async def mission_grid() -> dict:
+    return start_grid()
+
+
+class SweepBody(BaseModel):
+    beams: list[dict] = []
+
+
+class LinkBody(BaseModel):
+    lines: list[str] = []
+
+
+@router.get("/api/pi/sweep")
+async def pi_sweep_status() -> dict:
+    from app.services.grid_route import sweep_status
+
+    return sweep_status()
+
+
+@router.post("/api/pi/sweep")
+async def pi_sweep(body: SweepBody) -> dict:
+    from app.services.rover_track import apply_pi_sweep
+
+    result = apply_pi_sweep(body.beams)
+    if not result["ok"]:
+        raise HTTPException(status_code=409, detail=result)
+    return result
+
+
+@router.get("/api/pi/operator")
+async def pi_operator_poll() -> dict:
+    from app.services.pi_link import take_operator
+
+    return {"jobs": take_operator()}
+
+
+@router.get("/api/pi/link")
+async def pi_link_poll() -> dict:
+    from app.services.pi_link import take_commands
+
+    return {"commands": take_commands()}
+
+
+@router.post("/api/pi/link")
+async def pi_link_lines(body: LinkBody) -> dict:
+    from app.services.pi_link import accept_lines
+
+    return {"ok": True, "applied": accept_lines(body.lines)}
 
 
 @router.post("/api/pi/ingest")
@@ -105,9 +158,24 @@ async def simulation_camera(point: str | None = None) -> Response:
 @router.get("/api/simulation/audio.wav")
 async def simulation_audio() -> Response:
     path = media_file("audio")
-    if path is None:
-        raise HTTPException(status_code=404, detail={"error": "no simulation audio"})
-    return Response(content=path.read_bytes(), media_type="audio/wav")
+    if path is not None:
+        return Response(content=path.read_bytes(), media_type="audio/wav")
+    from app.services.mic_mimic import microphone_wav
+
+    raw = microphone_wav(get_state())
+    if raw is None:
+        raise HTTPException(status_code=404, detail={"error": "no audio"})
+    return Response(content=raw, media_type="audio/wav")
+
+
+@router.get("/api/microphone/audio.wav")
+async def microphone_audio() -> Response:
+    from app.services.mic_mimic import microphone_wav
+
+    raw = microphone_wav(get_state())
+    if raw is None:
+        raise HTTPException(status_code=404, detail={"error": "no audio"})
+    return Response(content=raw, media_type="audio/wav")
 
 
 @router.post("/api/mission/estop")

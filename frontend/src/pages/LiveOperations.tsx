@@ -1,26 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  captureCamera,
   clearOperationsView,
-  haltSimulation,
   guardObstacle,
-  listenMicrophone,
   listenRadar,
   loadReplay,
   planGrid,
   readOperatorToken,
   readSearchSignal,
-  stopMicrophone,
   requestKnock,
   sendHold,
-  startDummyRadar,
-  startPiMimic,
-  startHardware,
-  startSimulation,
   stopRadar,
 } from '../api/operations'
 import AudioDetailDialog from '../components/dialogs/AudioDetailDialog'
-import CameraDetailDialog from '../components/dialogs/CameraDetailDialog'
 import DetailDialog from '../components/dialogs/DetailDialog'
 import DiagnosticsDialog from '../components/dialogs/DiagnosticsDialog'
 import EvidenceDetailDialog from '../components/dialogs/EvidenceDetailDialog'
@@ -32,7 +23,6 @@ import TrialExportDialog from '../components/dialogs/TrialExportDialog'
 import UltrasonicDetailDialog from '../components/dialogs/UltrasonicDetailDialog'
 import VibrationDetailDialog from '../components/dialogs/VibrationDetailDialog'
 import MissionToolbar from '../components/layout/MissionToolbar'
-import CameraCluster from '../components/live/CameraCluster'
 import { APP_VERSION, footerMode, snapshotAge } from '../components/live/format'
 import OperatorControls from '../components/live/OperatorControls'
 import RadarOverview from '../components/live/RadarOverview'
@@ -45,9 +35,11 @@ import type { OperationsSnapshot } from '../types/operations'
 export default function LiveOperations({
   snapshot,
   connected,
+  onManual,
 }: {
   snapshot: OperationsSnapshot | null
   connected: boolean
+  onManual: () => void
 }) {
   const { geometry, error } = useGeometry()
   const [active, setActive] = useState<DialogRequest | null>(null)
@@ -77,19 +69,7 @@ export default function LiveOperations({
         hasToken={hasToken}
         status={actionError || notice}
         onOpen={setActive}
-        onRun={() => {
-          const allowed = window.confirm('This sends the start character to the physical rover. Sensor numbers come only from the Raspberry Pi. Continue?')
-          if (!allowed) return
-          void run(() => startHardware())
-        }}
-        onStop={() => void run(() => haltSimulation())}
-        onCapture={() => {
-          const cameras = (snapshot?.cameras ?? []).filter((camera) => camera.state === 'connected')
-          void run(async () => {
-            for (const camera of cameras) await captureCamera(camera.camera_id)
-            return cameras.length ? 'Capture requested.' : 'No camera is open.'
-          })
-        }}
+        onManual={onManual}
       />
       <div className="live-main" data-testid="live-main">
         <OperatorControls
@@ -105,17 +85,9 @@ export default function LiveOperations({
             const trialId = await loadReplay()
             return `Replay ${trialId} loaded. It is not live hardware.`
           })}
-          onListen={() => void run(async () => {
-            const listening = snapshot?.devices?.some((device) => device.device_id === 'xvf3800' && device.source_mode === 'live')
-            return listening ? stopMicrophone() : listenMicrophone()
-          })}
-          onRadarDummy={() => void run(async () => (
-            snapshot?.radar?.case_name === 'dummy_mr60bha2' ? stopRadar() : startDummyRadar()
-          ))}
-          onPiMimic={() => void run(async () => (
-            snapshot?.radar?.case_name === 'Pi mimic' ? stopRadar() : startPiMimic()
-          ))}
-          onScripted={() => void run(() => startSimulation())}
+          onListen={() => Promise.resolve('')}
+          onRadarDummy={() => Promise.resolve('')}
+          onPiMimic={() => Promise.resolve('')}
           onRadarLive={() => void run(async () => {
             const live = snapshot?.devices?.some((device) => device.device_id === 'mr60bha2' && device.source_mode === 'live')
             return live ? stopRadar() : listenRadar()
@@ -126,7 +98,6 @@ export default function LiveOperations({
         />
         <div className="live-primary" data-testid="live-primary">
           <TestbedOverview snapshot={snapshot} geometry={geometry} error={error} showBoxes={showBoxes} onOpen={setActive} />
-          <CameraCluster snapshot={snapshot} onOpen={setActive} />
           <RadarOverview snapshot={snapshot} onOpen={setActive} />
         </div>
         <div className="live-secondary">
@@ -150,9 +121,6 @@ export default function LiveOperations({
           onShowBoxes={setShowBoxes}
           onClose={close}
         />
-      ) : null}
-      {active?.kind === 'camera' ? (
-        <CameraDetailDialog open cameraId={active.cameraId} snapshot={snapshot} run={run} onClose={close} />
       ) : null}
       {active?.kind === 'radar' ? <RadarDetailDialog open snapshot={snapshot} onClose={close} /> : null}
       {active?.kind === 'audio' ? <AudioDetailDialog open snapshot={snapshot} onClose={close} /> : null}

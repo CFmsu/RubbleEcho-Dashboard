@@ -50,33 +50,14 @@ def test_phone_can_drive_and_auto_stays_stopped_until_armed(monkeypatch) -> None
     assert seen == ["S", "F"]
 
 
-def test_arm_samples_each_sensor_and_sends_the_sound_category(monkeypatch) -> None:
-    from app.state import get_state
-
-    def hear() -> None:
-        get_state().acoustic = {"class": "scratch/scrape"}
-
-    monkeypatch.setattr("app.services.auto_listen._sample_acoustic", hear)
+def test_arm_sends_the_grid_start() -> None:
     armed = client.post("/api/mission/hardware", json={"authorize_motion": True})
     assert armed.status_code == 200
     body = armed.json()
-    assert body["motion"] == "stopped"
-    assert body["drive_mode"] == "auto"
-    assert body["rover"]["command"] == "S"
-
-    snapshot = client.get("/api/operations/snapshot").json()
-    summaries = [event["summary"] for event in snapshot["events"]]
-    assert "Radar on. The rover is still stopped." in summaries
-    assert "Range on. The rover is still stopped." in summaries
-    assert "Camera on. The rover is still stopped." in summaries
-    assert "Mic on. The rover is still stopped." in summaries
-    point = snapshot["heatmap_points"][0]
-    assert point["point_id"] == "r1c1"
-    assert point["readings"]["sound_category"] == "scrape"
-    assert "row 1, the first square" in snapshot["reasoning"]["narrative"]
-    assert "scraping" in snapshot["reasoning"]["narrative"]
-    blocked = client.post("/api/remote/drive", json={"command": "F"})
-    assert blocked.json()["rover"]["reason"] == "auto_sampling"
+    assert body["motion"] == "authorized"
+    assert body["rover"]["command"] == "A"
+    forward = client.post("/api/remote/drive", json={"command": "F"})
+    assert forward.json()["rover"]["reason"] != "auto_sampling"
 
 
 def test_posted_audio_is_categorized() -> None:

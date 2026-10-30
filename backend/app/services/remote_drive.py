@@ -8,8 +8,11 @@ from app.services.sensor_gates import public_gates, set_gate
 from app.state import get_state
 
 _DIRECTIONS = {"F": "forward", "B": "back", "L": "left", "R": "right", "S": "stop"}
+_HORNS = {"ultrasonic", "mmwave"}
+_SERVO_MOVES = {"left", "right", "center", "stop"}
 _last = {"command": None, "sent": False, "port": None, "reason": None}
 _mode = "stopped"
+_speed = 9
 
 
 def public_remote() -> dict:
@@ -24,6 +27,7 @@ def public_remote() -> dict:
         "step": auto["step"],
         "stopped": _mode != "auto",
         "drives_itself": False,
+        "speed": _speed,
     }
 
 
@@ -126,6 +130,75 @@ def drive_command(command: str) -> dict:
         "drives_itself": False,
         "mode": _mode,
     }
+
+
+def set_speed(level: int) -> dict:
+    global _speed
+    if isinstance(level, bool) or not isinstance(level, int) or level < 0 or level > 9:
+        return {"ok": False, "status": 400, "error": "Speed is 0 through 9."}
+    _speed = level
+    from app.drivers.motor_link import send_speed
+
+    link = send_speed(level)
+    state = get_state()
+    state.add_event(
+        device="arduino_uno",
+        sensor="motors",
+        summary=f"Remote motor speed {level}. The model did not command this.",
+        quality="operator",
+        captured_at_utc=utc_now(),
+        value=level,
+        unit="step",
+    )
+    return {"ok": True, "status": 200, "rover": link, **public_remote()}
+
+
+def set_servo(horn: str, move: str, speed: int) -> dict:
+    if horn not in _HORNS:
+        return {"ok": False, "status": 400, "error": "Use the ultrasonic or mmWave servo."}
+    if move not in _SERVO_MOVES:
+        return {"ok": False, "status": 400, "error": "Use left, right, center, or stop."}
+    if isinstance(speed, bool) or not isinstance(speed, int):
+        speed = 3
+    speed = min(9, max(1, speed))
+    from app.services.pi_link import enqueue_operator
+
+    enqueue_operator("servo", {"horn": horn, "move": move, "speed": speed})
+    return {"ok": True, "status": 200, "horn": horn, "move": move, "speed": speed, **public_remote()}
+
+
+def request_deploy() -> dict:
+    from app.services.pi_link import enqueue_operator
+
+    enqueue_operator("deploy", {"cell": "r1c1"})
+    state = get_state()
+    state.add_event(
+        device="raspberry_pi_4",
+        sensor="link",
+        summary="Deploy from the remote. Sensors record while the rover stays still.",
+        quality="operator",
+        captured_at_utc=utc_now(),
+        value=None,
+        unit=None,
+    )
+    return {"ok": True, "status": 200, "job": "deploy", **public_remote()}
+
+
+def request_collect() -> dict:
+    from app.services.pi_link import enqueue_operator
+
+    enqueue_operator("collect", {"cell": "manual"})
+    state = get_state()
+    state.add_event(
+        device="raspberry_pi_4",
+        sensor="link",
+        summary="Collect signal from the remote. Ultrasonic, radar, and microphone are saved. The rover is not driven.",
+        quality="operator",
+        captured_at_utc=utc_now(),
+        value=None,
+        unit=None,
+    )
+    return {"ok": True, "status": 200, "job": "collect", **public_remote()}
 
 
 def set_sensor(name: str, on: bool) -> dict:

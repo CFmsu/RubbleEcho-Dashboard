@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import threading
 
@@ -54,43 +55,54 @@ def note_hold(cell: dict) -> None:
         _frames.setdefault(cell_id, [])
         _opencv.setdefault(cell_id, [])
     state = get_state()
+    from app.services.mic_mimic import ensure_microphone
+
+    ensure_microphone(state)
     acoustic = state.acoustic or {}
     radar = state.radar or {}
     ultrasonic = state.ultrasonic or {}
     from app.services.briefing import sound_category
     from app.services.sim_run import _reading_score
 
-    label = acoustic.get("class")
-    category = acoustic.get("sound_category") or sound_category(label if isinstance(label, str) else None)
+    label = acoustic.get("class") if isinstance(acoustic.get("class"), str) else None
+    heard = bool(label and label.strip())
+    category = (acoustic.get("sound_category") or sound_category(label)) if heard else None
     previous = next((item for item in state.heatmap if item.get("point_id") == cell_id), None)
     previous_readings = previous.get("readings") if isinstance(previous, dict) and isinstance(previous.get("readings"), dict) else {}
-    score = _reading_score(acoustic or None, radar or None)
-    event = state.add_event(
-        device="raspberry_pi_4",
-        sensor="acoustic",
-        summary=f"Processed sound at {place_name(cell_id)}: {category}.",
-        quality="live",
-        captured_at_utc=utc_now(),
-        value=None,
-        unit=None,
-        site_id=cell_id,
-        acoustic_class=label if isinstance(label, str) else None,
-    )
-    state.heatmap = [item for item in state.heatmap if item.get("point_id") != cell_id]
-    state.heatmap.append(
-        {
+    evidence_ids: list[str] = []
+    if heard:
+        event = state.add_event(
+            device="raspberry_pi_4",
+            sensor="acoustic",
+            summary=f"Processed sound at {place_name(cell_id)}: {category}.",
+            quality="live",
+            captured_at_utc=utc_now(),
+            value=None,
+            unit=None,
+            site_id=cell_id,
+            acoustic_class=label,
+        )
+        evidence_ids.append(event["event_id"])
+        score = _reading_score(acoustic or None, radar or None)
+        semantics = "uncalibrated_from_cell_readings"
+    else:
+        score = None
+        semantics = "uncalibrated_from_cell_readings"
+    point = {
             "point_id": cell_id,
             "x_cm": cell.get("x_cm"),
             "y_cm": cell.get("y_cm"),
             "score": score,
-            "score_semantics": "uncalibrated_from_cell_readings",
+            "score_semantics": semantics,
             "readings": {
                 "place": place_name(cell_id),
-                "sound": label,
+                "sound": label if heard else None,
                 "sound_category": category,
+                "audio_status": "measured",
+                "audio_reason": None,
                 "radar_presence": radar.get("human_presence"),
                 "distance_m": radar.get("distance_m"),
-                "ultrasonic_cm": ultrasonic.get("distance_cm"),
+                "ultrasonic_cm": ultrasonic.get("distance_cm") if ultrasonic.get("distance_cm") else None,
                 "photos": previous_readings.get("photos") or 0,
                 "opencv": list(previous_readings.get("opencv") or []),
             },
@@ -98,10 +110,11 @@ def note_hold(cell: dict) -> None:
             "sample_count": 1,
             "method": "cell_readings",
             "source_mode": "live",
-            "quality": "measured",
-            "evidence_event_ids": [event["event_id"]],
+            "quality": "measured" if heard or ultrasonic.get("distance_cm") or radar.get("distance_m") is not None else "partial",
+            "evidence_event_ids": evidence_ids,
         }
-    )
+    state.cell_captures = [item for item in state.cell_captures if item.get("point_id") != cell_id]
+    state.cell_captures.append(point)
 
 
 def keep_frame(raw: bytes) -> int:
@@ -161,6 +174,12 @@ def photo_notes() -> dict[str, dict]:
         }
 
 
+def publish_heatmap() -> None:
+    """Show the nine squares only after the full-grid reasoning has finished."""
+    state = get_state()
+    state.heatmap = [dict(item) for item in state.cell_captures]
+
+
 def finish_run() -> None:
     if os.environ.get("PYTEST_CURRENT_TEST"):
         _write_result(False)
@@ -170,7 +189,7 @@ def finish_run() -> None:
 
 def _stamp_photos(cell_id: str, count: int, notes: list[dict]) -> None:
     state = get_state()
-    for point in state.heatmap:
+    for point in [*state.cell_captures, *state.heatmap]:
         if point.get("point_id") == cell_id and isinstance(point.get("readings"), dict):
             point["readings"]["photos"] = count
             point["readings"]["opencv"] = [item.get("note") for item in notes]
@@ -183,10 +202,23 @@ def _write_result(use_vision: bool) -> None:
     from app.services.mission import _spoken, request_reason
 
     state = get_state()
+    points = list(state.cell_captures or state.heatmap or [])
     if use_vision:
         request_reason()
-        return
-    state.reasoning = _spoken(local_assessment(state.events, state.heatmap))
+    else:
+        state.reasoning = _spoken(local_assessment(state.events, points))
+    publish_heatmap()
+    _save_grid_files(state)
+
+
+def _save_grid_files(state) -> None:
+    from app.persistence.store import data_dir
+
+    trial = state.trial_id or "unassigned"
+    folder = data_dir() / "pi_inbox" / str(trial)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "heatmap.json").write_text(json.dumps(state.heatmap, indent=2), encoding="utf-8")
+    (folder / "reasoning.json").write_text(json.dumps(state.reasoning, indent=2), encoding="utf-8")
 
 
 def _ask_vision() -> None:

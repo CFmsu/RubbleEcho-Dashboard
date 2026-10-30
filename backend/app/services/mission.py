@@ -326,12 +326,16 @@ def _spoken(result: dict) -> dict:
     recommendation = result.get("recommendation")
     if isinstance(recommendation, dict):
         point = recommendation.get("point_id")
-    heatmap = list(get_state().heatmap or [])
+    state = get_state()
+    heatmap = _grid_points(state)
     result["narrative"] = align_narrative(
         result.get("narrative") if isinstance(result.get("narrative"), str) else None,
         heatmap,
         str(point) if point else None,
     )
+    from app.services.observation import attach_to_reasoning
+
+    attach_to_reasoning(state, result)
     return result
 
 
@@ -445,13 +449,20 @@ def _evidence(state) -> list[dict]:
         elif row.get("sensor") == "acoustic" or previous.get("sensor") != "acoustic":
             by_site[site] = row
     if by_site:
-        return [by_site[site] for site in order][-12:]
-    return rows[-12:]
+        return [by_site[site] for site in order][-36:]
+    return rows[-36:]
+
+
+def _grid_points(state) -> list[dict]:
+    captures = list(getattr(state, "cell_captures", None) or [])
+    if captures:
+        return captures
+    return list(state.heatmap or [])
 
 
 def _cell_briefs(state) -> list[dict]:
     briefs = []
-    for point in state.heatmap or []:
+    for point in _grid_points(state):
         readings = point.get("readings") if isinstance(point.get("readings"), dict) else {}
         briefs.append(
             {

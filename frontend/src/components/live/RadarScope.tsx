@@ -1,6 +1,3 @@
-import { motion, useReducedMotion } from 'framer-motion'
-import { useId } from 'react'
-
 const CX = 100
 const CY = 108
 const RING = 62
@@ -14,46 +11,25 @@ function point(bearingDeg: number, radius: number): { x: number; y: number } {
   }
 }
 
-function sector(halfDeg: number): string {
-  const start = point(-halfDeg, RING)
-  const end = point(halfDeg, RING)
-  return `M ${CX} ${CY} L ${start.x} ${start.y} A ${RING} ${RING} 0 0 1 ${end.x} ${end.y} Z`
-}
-
-function figure(value: number | null | undefined, digits = 0): string {
-  if (value == null || Number.isNaN(value)) return '—'
-  return digits === 0 ? String(Math.round(value)) : value.toFixed(digits)
-}
-
 export default function RadarScope({
   distanceM,
   presence,
   targets,
-  breath,
-  heart,
-  running,
 }: {
   distanceM: number | null | undefined
   presence?: boolean | null
   targets?: number | null
-  breath?: number | null
-  heart?: number | null
-  running: boolean
+  running?: boolean
 }) {
-  const reduce = useReducedMotion()
-  const still = !running || Boolean(reduce)
-  const rawId = useId().replace(/:/g, '')
-  const washId = `wash-${rawId}`
   const range = typeof distanceM === 'number' && distanceM > 0 ? Math.min(distanceM, MAX_M) : null
   const radius = range == null ? null : (range / MAX_M) * RING
-  const blip = radius != null && presence === true ? point(0, radius) : null
   const ticks = Array.from({ length: 24 }, (_, index) => index * 15)
 
   return (
-    <div className="ppi-frame" role="img" aria-label={caption(presence, range, breath, heart, targets)}>
+    <div className="ppi-frame" role="img" aria-label={caption(presence, range, targets)}>
       <svg className="ppi-scope" viewBox="0 0 200 216">
         <rect width="200" height="216" fill="#f7f9fc" />
-        <Stat x={8} y={14} label="PRESENCE" value={presence == null ? '—' : presence ? 'YES' : 'NO'} hot={presence === true} />
+        <Stat x={8} y={14} label="FLAG" value={presence == null ? '—' : presence ? 'SET' : 'CLEAR'} hot={false} />
         <Stat x={148} y={14} label="RANGE" value={range == null ? '—' : `${range.toFixed(2)} m`} hot={range != null} align="end" />
         <circle cx={CX} cy={CY} r={RING + 8} fill="#ffffff" stroke="#17243b" strokeWidth="1" />
         {[0.33, 0.66, 1].map((step) => (
@@ -77,44 +53,8 @@ export default function RadarScope({
             </text>
           )
         })}
-        {blip ? (
-          <g>
-            <motion.circle
-              cx={blip.x}
-              cy={blip.y}
-              r="5.5"
-              fill="#2563eb"
-              opacity="0.22"
-              animate={still ? { opacity: 0.22 } : { opacity: [0.12, 0.4, 0.12] }}
-              transition={still ? { duration: 0.2 } : { duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-            />
-            <circle cx={blip.x} cy={blip.y} r="2.2" fill="#2563eb" stroke="#ffffff" strokeWidth="0.7" />
-            <text x={blip.x + 4} y={blip.y - 4} fill="#17243b" fontSize="6">
-              {range?.toFixed(2)} m
-            </text>
-          </g>
-        ) : null}
         <circle cx={CX} cy={CY} r="1.3" fill="#17243b" />
-        <Stat x={8} y={196} label="BREATH" value={breath == null ? '—' : `${figure(breath)} /min`} hot={breath != null && breath > 0.5} />
-        <Stat x={192} y={196} label="HEART" value={heart == null ? '—' : `${figure(heart)} bpm`} hot={heart != null && heart > 0.5} align="end" />
       </svg>
-      <motion.div
-        className="ppi-sweep"
-        animate={still ? { rotate: 0 } : { rotate: 360 }}
-        transition={still ? { duration: 0.2 } : { duration: 2.4, repeat: Infinity, ease: 'linear' }}
-      >
-        <svg viewBox="0 0 200 216" aria-hidden="true">
-          <defs>
-            <linearGradient id={washId} x1={CX} y1={CY} x2={CX} y2={CY - RING} gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.05" />
-              <stop offset="100%" stopColor="#2563eb" stopOpacity="0.55" />
-            </linearGradient>
-          </defs>
-          <path d={sector(18)} fill="#2563eb" opacity="0.12" />
-          <path d={sector(8)} fill={`url(#${washId})`} />
-          <line x1={CX} y1={CY} x2={CX} y2={CY - RING} stroke="#2563eb" strokeWidth="1.1" />
-        </svg>
-      </motion.div>
     </div>
   )
 }
@@ -146,13 +86,10 @@ function Stat({
 function caption(
   presence: boolean | null | undefined,
   range: number | null,
-  breath: number | null | undefined,
-  heart: number | null | undefined,
   targets: number | null | undefined,
 ): string {
-  const who = presence == null ? 'presence unknown' : presence ? 'presence yes' : 'presence no'
-  const where = range == null ? 'no range' : `${range.toFixed(2)} meters on the forward axis`
-  const life = `${figure(breath)} breaths per minute, ${figure(heart)} beats per minute`
-  const count = targets == null ? '' : `, ${targets} target${targets === 1 ? '' : 's'}`
-  return `Radar ${who}, ${where}, ${life}${count}. Bearing is not reported.`
+  const flag = presence == null ? 'presence flag not reported' : presence ? 'presence flag set' : 'presence flag clear'
+  const where = range == null ? 'no range' : `${range.toFixed(2)} meters`
+  const count = targets == null ? '' : `, ${targets} reported return${targets === 1 ? '' : 's'}`
+  return `Radar ${flag}, ${where}${count}. This is not a confirmed person, and bearing is not reported.`
 }

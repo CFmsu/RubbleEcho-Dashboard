@@ -1,8 +1,14 @@
 
 import { useEffect, useState } from 'react'
 import type { Telemetry } from '../types/telemetry'
-import sampleTelemetry from '../data/sampleTelemetry.json'
 import { isValidTelemetry } from '../types/telemetryValidation'
+
+const emptyTelemetry: Telemetry = {
+  mission: { status: 'STANDBY', phase: 'explore', scenario: 'collapse', probe_count: 0, confidence: 0 },
+  robot: { x: 0, y: 0 },
+  probes: [],
+  events: [],
+}
 
 type ConnectionStatus =
   | 'connecting'
@@ -11,7 +17,7 @@ type ConnectionStatus =
 
 export function useTelemetry() {
   const [telemetry, setTelemetry] = useState<Telemetry>(
-    sampleTelemetry as Telemetry
+    emptyTelemetry
   )
 
   const [connectionStatus, setConnectionStatus] =

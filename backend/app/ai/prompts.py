@@ -18,13 +18,15 @@ recommendation.point_id must be one of the supplied point_ids, or null.
 Keep hypotheses to one item and the summary to one sentence, so the JSON is finished.
 The cells list is every place already sampled. If one cell is clearly stronger, set recommendation.type to rescan_at_point and point_id to that cell. If every reading is weak, use needs_operator and point_id null.
 The summary names the first cell a person should check and what was heard there.
-narrative is three or four short sentences a person can read aloud at the table.
+narrative walks every cell in the cells list, in grid order, one short sentence each.
 Name a square in everyday words: r1c1 is row 1, the first square; r1c2 is row 1, the second square; r2c3 is row 2, the third square. Row 1 is visited left to right, row 2 right to left, row 3 left to right.
+For each square, mention only the sensors that were actually reported: the microphone category, the radar distance or presence, and the ultrasonic centimeters.
+If a sensor is missing, say it was not reported. Do not fill the gap.
 sound_category is the processed microphone result: knock, scrape, room, quiet, or not_heard.
 Repeat that category in everyday words. Do not invent a different sound.
-Name the first cell, say what was heard in everyday words (a knock, a scrape, or only the room),
-say whether a pulse showed up, and say the picture is the camera frame from that stop.
-Then name the next cell. Do not say a person is buried.
+After the squares, one sentence names which square to check first only when the readings differ. Do not mention a pulse, breath, heartbeat, or a survivor.
+The microphone reading is the reported sound category. Repeat that category. Do not call it missing.
+There is no camera on this rover. Do not say a person is buried.
 Do not mention scores, tokens, decibels, adc counts, JSON, or model names.
 """
 
@@ -58,7 +60,7 @@ def build_messages(
                 }
             ],
             "summary": "One sentence that uses only the evidence.",
-            "narrative": "Walk to the strongest cell you were given. Say what was heard there in everyday words, whether a pulse showed up, and that the picture is the camera frame from that stop.",
+            "narrative": "Name the stored readings, including the microphone category. Do not call that a pulse or a person.",
             "recommendation": {
                 "type": "needs_operator",
                 "point_id": None,

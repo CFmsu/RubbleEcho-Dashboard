@@ -10,6 +10,10 @@ def test_reported_cell_is_the_measured_center() -> None:
     route = search_lattice()
     state.scan_route = route
     assert apply_rover_line('ACK {"device":"arduino_uno","cell":"r1c2","phase":"hold"}')
+    from app.services.grid_route import sweep_status
+
+    assert sweep_status()["ready"] is True
+    assert sweep_status()["cell"] == "r1c2"
     cell = next(item for item in route if item["id"] == "r1c2")
     assert state.pose["source"] == "arduino_uno"
     assert state.pose["cell_id"] == "r1c2"
@@ -54,11 +58,13 @@ def test_each_square_is_its_own_listen_and_the_briefing_names_the_row() -> None:
     state.reset()
     assert apply_rover_line('ACK {"device":"arduino_uno","status":"grid_started"}')
     assert apply_rover_line('ACK {"device":"arduino_uno","cell":"r1c1","phase":"hold"}')
-    assert state.heatmap[0]["point_id"] == "r1c1"
-    assert state.heatmap[0]["readings"]["place"] == "row 1, the first square"
+    assert state.heatmap == []
+    assert state.cell_captures[0]["point_id"] == "r1c1"
+    assert state.cell_captures[0]["readings"]["place"] == "row 1, the first square"
     assert apply_rover_line('ACK {"device":"arduino_uno","cell":"r2c3","phase":"hold"}')
-    assert [point["point_id"] for point in state.heatmap] == ["r1c1", "r2c3"]
+    assert [point["point_id"] for point in state.cell_captures] == ["r1c1", "r2c3"]
     assert apply_rover_line('ACK {"device":"arduino_uno","status":"grid_done"}')
+    assert [point["point_id"] for point in state.heatmap] == ["r1c1", "r2c3"]
     assert "row 1, the first square" in state.reasoning["narrative"]
 
 
@@ -74,6 +80,24 @@ def test_a_moving_rover_does_not_keep_the_microphone_trace() -> None:
     assert state.acoustic is None
     assert state.acoustic_waveform == []
     assert state.phase == "SCANNING"
+
+
+def test_a_pi_sweep_reroutes_while_the_rover_is_stopped() -> None:
+    from app.services import grid_route
+    from app.services.rover_track import apply_pi_sweep
+
+    state = get_state()
+    state.reset()
+    assert apply_rover_line(
+        'ACK {"device":"arduino_uno","status":"arrived","cell":"r1c1","heading":0}'
+    )
+    assert grid_route.sweep_status()["ready"] is True
+    result = apply_pi_sweep(
+        [{"deg": 0, "cm": 90}, {"deg": 90, "cm": 11}, {"deg": 180, "cm": 90}]
+    )
+    assert result["next"] == "r2c1"
+    assert state.ultrasonic["distance_cm"] == 11
+    assert "r2c1" in state.events[-1]["summary"]
 
 
 def test_scripted_pose_leaves_a_live_fix_in_place() -> None:

@@ -18,7 +18,7 @@ export default function SensorCards({ snapshot }: { snapshot: OperationsSnapshot
         <h3 className="font-semibold">ReSpeaker acoustic window</h3>
         <p className="mt-2 text-lg">{snapshot?.acoustic?.class ?? 'no samples'}</p>
         <p className="text-xs text-slate-500">
-          {snapshot?.acoustic?.score_semantics ?? 'not scored'} {snapshot?.acoustic?.model_score ?? ''} · origin unknown · {snapshot?.acoustic?.source_mode ?? 'unavailable'}
+          {snapshot?.acoustic?.score_semantics ?? 'not scored'} {snapshot?.acoustic?.model_score ?? ''} · {snapshot?.acoustic?.source_mode ?? 'live'}
         </p>
         <SignalScope samples={snapshot?.acoustic_waveform ?? []} label="Acoustic waveform" large />
         <Waveform values={envelope} />

@@ -1,3 +1,6 @@
+import math
+import time
+
 from app.ai.nebius_client import ai_status
 from app.config.geometry import load_geometry
 from app.drivers.camera_pi import streaming_count
@@ -14,6 +17,9 @@ def _rover_leg(state: AppState) -> dict | None:
 
 
 def build_snapshot(state: AppState) -> dict:
+    from app.services.mic_mimic import ensure_microphone
+
+    ensure_microphone(state)
     ai = ai_status()
     nvidia_online = bool(
         state.reasoning
@@ -23,12 +29,16 @@ def build_snapshot(state: AppState) -> dict:
     )
     devices = [_public_device(device, ai, nvidia_online) for device in state.devices]
     badge = _badge(state)
+    until = float(getattr(state, "listen_until", 0) or 0)
+    countdown = max(0, int(math.ceil(until - time.time()))) if until else 0
     return {
         "version": "1",
         "badge": badge,
         "mode": state.mode,
         "system_live": _system_live(state, devices),
         "mission_phase": state.phase,
+        "sensor_countdown_s": countdown,
+        "sensor_countdown_until_ms": int(until * 1000) if countdown else None,
         "safety_state": state.safety,
         "run_active": state.run_active,
         "scan_stage": state.scan_stage,
@@ -64,6 +74,7 @@ def build_snapshot(state: AppState) -> dict:
         "blocked_cells": list(state.blocked_cells),
         "events": list(reversed(state.events[-40:])),
         "reasoning": state.reasoning,
+        "observation": getattr(state, "observation", None),
         "search_plan": state.search_plan,
         "scene_note": state.scene_note,
         "ai_usage": state.ai_usage,

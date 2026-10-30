@@ -36,7 +36,7 @@ def test_after_the_stop_the_saved_sound_stays_and_new_samples_are_hidden(monkeyp
     assert calls == ["on", "off"]
     assert mic_window.publish_allowed() is False
     assert state.phase == "SCANNING"
-    assert state.heatmap[0]["readings"]["sound_category"] == "scrape"
+    assert state.cell_captures[0]["readings"]["sound_category"] == "scrape"
     assert state.acoustic["class"] == "scratch/scrape"
     state.acoustic_waveform = [0.1]
     from app.audio.engine import _publish

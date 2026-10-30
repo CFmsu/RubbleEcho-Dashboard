@@ -20,7 +20,7 @@ def test_narration_is_spoken_and_names_the_first_stop() -> None:
     )
     assert "Walk to A_NEAR first" in text
     assert "sharp knock" in text
-    assert "camera frame" in text
+    assert "camera frame" not in text
     assert "dBFS" not in text
     assert "adc" not in text.lower()
 
@@ -58,6 +58,35 @@ def test_a_wrong_next_stop_is_replaced_with_the_ranked_one() -> None:
     assert "camera frame" in text
     assert "After that, look at A_FAR." in text
     assert "B_NEAR" not in text
+
+
+def test_the_report_lists_each_square_reading() -> None:
+    class State:
+        reasoning = {"narrative": "Walk to row 1, the second square first. A knock was the clearest sound."}
+        heatmap = [
+            {
+                "point_id": "r1c1",
+                "score": 0.2,
+                "readings": {"sound": "ambient", "ultrasonic_cm": 40, "distance_m": 1.2, "radar_presence": False},
+            },
+            {
+                "point_id": "r1c2",
+                "score": 0.8,
+                "readings": {"sound": "knock", "ultrasonic_cm": 12, "distance_m": 0.42, "radar_presence": True},
+            },
+        ]
+        media_camera = None
+        trial_id = "live-1"
+
+    pdf = briefing_pdf(State())
+    assert b"RubbleEcho report" in pdf
+    assert b"Narration" in pdf
+    assert b"Recorded readings" in pdf
+    assert b"row 1, the first square" in pdf
+    assert b"Knock" in pdf
+    assert b"12 cm" in pdf
+    assert b"0.42 m" in pdf
+    assert b"Trial live-1" in pdf
 
 
 def test_briefing_keeps_a_written_narrative() -> None:

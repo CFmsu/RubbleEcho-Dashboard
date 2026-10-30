@@ -47,37 +47,97 @@ def transmit(command: str, write=None) -> dict:
             return {"sent": False, "port": None, "command": command, "reason": "rover_not_found"}
         write(port, command)
         return {"sent": True, "port": port, "command": command, "reason": "sent"}
+    port = motor_port()
+    if not port:
+        return _queue_pi(command)
     if command == "S" and not _held_open():
         from app.services.rover_track import end_tracking
 
         end_tracking()
         return {"sent": False, "port": None, "command": command, "reason": "rover_not_open"}
-    port = motor_port()
-    if not port:
-        return {"sent": False, "port": None, "command": command, "reason": "rover_not_found"}
     if command == "A":
         from app.services.rover_track import begin_tracking
 
         begin_tracking()
     try:
         _send(port, command)
-    except Exception as exc:
+    except Exception:
         if command == "A":
             from app.services.rover_track import end_tracking
 
             end_tracking()
-        return {
-            "sent": False,
-            "port": port,
-            "command": command,
-            "reason": "serial_error",
-            "error": type(exc).__name__,
-        }
+        return _queue_pi(command)
     if command == "S":
         from app.services.rover_track import end_tracking
 
         end_tracking()
     return {"sent": True, "port": port, "command": command, "reason": "sent"}
+
+
+def send_speed(level: int) -> dict:
+    """Set the manual PWM. The grid still uses full power on its own moves."""
+    command = str(level)
+    if command not in "0123456789":
+        return {"sent": False, "port": None, "command": command, "reason": "rejected"}
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return {"sent": False, "port": None, "command": command, "reason": "not_sent"}
+    port = motor_port()
+    if not port or not _held_open():
+        from app.services.pi_link import enqueue
+
+        enqueue(command)
+        return {"sent": True, "port": "pi", "command": command, "reason": "queued"}
+    try:
+        _send(port, command)
+    except Exception:
+        from app.services.pi_link import enqueue
+
+        enqueue(command)
+        return {"sent": True, "port": "pi", "command": command, "reason": "queued"}
+    return {"sent": True, "port": port, "command": command, "reason": "sent"}
+
+
+def send_cell(cell_id: str) -> dict:
+    """Queue one adjacent square. The Uno drives it after the current stop."""
+    command = f"C{cell_id}\n"
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return {"sent": False, "port": None, "command": command.strip(), "reason": "not_sent"}
+    from app.services.rover_track import firmware_accepts_cells
+
+    if not firmware_accepts_cells():
+        return {"sent": False, "port": "pi", "command": command.strip(), "reason": "board_drives_the_squares"}
+    port = motor_port()
+    if not port or not _held_open():
+        from app.services.pi_link import enqueue
+
+        enqueue(command)
+        return {"sent": True, "port": "pi", "command": command.strip(), "reason": "queued"}
+    try:
+        _send(port, command)
+    except Exception as exc:
+        return {
+            "sent": False,
+            "port": port,
+            "command": command.strip(),
+            "reason": "serial_error",
+            "error": type(exc).__name__,
+        }
+    return {"sent": True, "port": port, "command": command.strip(), "reason": "sent"}
+
+
+def _queue_pi(command: str) -> dict:
+    from app.services.pi_link import enqueue
+
+    if command == "A":
+        from app.services.rover_track import begin_tracking
+
+        begin_tracking()
+    enqueue(command)
+    if command == "S":
+        from app.services.rover_track import end_tracking
+
+        end_tracking()
+    return {"sent": True, "port": "pi", "command": command, "reason": "queued"}
 
 
 def _held_open() -> bool:

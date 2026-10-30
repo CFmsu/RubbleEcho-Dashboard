@@ -107,6 +107,13 @@ export interface Reasoning {
   }
   unknowns: string[]
   event_ids: string[]
+  evidence_sufficiency?: 'insufficient' | 'limited' | 'supported'
+  sufficiency_reason?: string
+  ranking_allowed?: boolean
+  snapshot_id?: string
+  session_id?: string
+  audio_note?: string
+  local_only?: boolean
 }
 
 export interface OperationsSnapshot {
@@ -115,6 +122,8 @@ export interface OperationsSnapshot {
   mode: SourceMode
   system_live: boolean
   mission_phase: string
+  sensor_countdown_s?: number
+  sensor_countdown_until_ms?: number | null
   safety_state: string
   run_active?: boolean
   scan_stage?: string
@@ -149,6 +158,7 @@ export interface OperationsSnapshot {
     origin_unknown: boolean
     site_id?: string | null
     source_mode: SourceMode
+    sound_category?: string
     channel_note?: string
     tdoa_summary?: string
     duration_ms?: number

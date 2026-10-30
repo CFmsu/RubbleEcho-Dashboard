@@ -78,8 +78,11 @@ class AppState:
         self.events: list[dict] = []
         self.samples: list[dict] = []
         self.heatmap: list[dict] = []
+        self.cell_captures: list[dict] = []
+        self.listen_until = 0.0
         self.scan_route: list[dict] = []
         self.reasoning = None
+        self.observation = None
         self.search_plan = None
         self.scene_note = None
         self.ai_usage = {

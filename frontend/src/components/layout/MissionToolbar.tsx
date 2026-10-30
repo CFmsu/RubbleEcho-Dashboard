@@ -6,26 +6,20 @@ export default function MissionToolbar({
   hasToken,
   status,
   onOpen,
-  onCapture,
-  onRun,
-  onStop,
+  onManual,
 }: {
   snapshot: OperationsSnapshot | null
   hasToken: boolean
   status: string
   onOpen: OpenDialog
-  onCapture: () => void
-  onRun: () => void
-  onStop: () => void
+  onManual: () => void
 }) {
   const trial = snapshot?.trial_id ? snapshot.trial_id : 'No trial'
   const phase = snapshot?.run_active ? snapshot.scan_stage ?? 'SCANNING' : snapshot?.mission_phase ?? 'IDLE'
-  const camerasReady = (snapshot?.streaming_camera_count ?? 0) > 0 || Boolean(snapshot?.cameras?.some((camera) => camera.image_url))
-  const knockArmed = snapshot?.solenoid.state === 'ARMED' && hasToken
   const canExport = Boolean(snapshot?.trial_id)
-  const running = Boolean(snapshot?.run_active)
-  const elapsed = snapshot?.mode === 'simulation' && snapshot.run_elapsed_s != null ? `${Math.round(snapshot.run_elapsed_s)}s` : '—'
-  const meta = `${trial} · cover not recorded · ${phase} · runtime ${elapsed}`
+  const elapsed = snapshot?.run_elapsed_s != null && (snapshot.run_active || snapshot.mission_phase === 'COMPLETE') ? `${Math.round(snapshot.run_elapsed_s)}s` : '—'
+  const meta = `${trial} · ${phase} · runtime ${elapsed}`
+  void hasToken
 
   return (
     <div className="mission-toolbar" data-testid="mission-toolbar">
@@ -33,18 +27,7 @@ export default function MissionToolbar({
         {meta}{status ? ` · ${status}` : ''}
       </p>
       <div className="toolbar-actions">
-        <span title={running ? 'A session is open. STOP ends motion.' : 'Authorize the physical rover, then wait for Raspberry Pi samples.'}>
-          <button type="button" className="btn primary" disabled={running} onClick={onRun}>{running ? 'Armed' : 'Arm rover'}</button>
-        </span>
-        <span title="Stop the simulation and return the console to idle.">
-          <button type="button" className="btn danger" onClick={onStop}>Stop</button>
-        </span>
-        <span title={camerasReady ? 'Capture a frame from each open camera.' : 'Disabled until a camera is streaming.'}>
-          <button type="button" className="btn" disabled={!camerasReady} onClick={onCapture}>Capture</button>
-        </span>
-        <span title={knockArmed ? 'Opens a confirmation, then sends KNOCK to the Arduino on pin A0.' : 'Disarmed. Arm first. A knock is three taps of 200 ms on pin A0.'}>
-          <button type="button" className="btn" disabled={!knockArmed} onClick={() => onOpen({ kind: 'knock' })}>Knock Test</button>
-        </span>
+        <button type="button" className="btn" onClick={onManual}>Manual control</button>
         <span title={canExport ? 'Choose ZIP, JSON, or CSV.' : 'Disabled until a trial is open.'}>
           <button type="button" className="btn" disabled={!canExport} onClick={() => onOpen({ kind: 'export' })}>Export</button>
         </span>
