@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { OperationsSnapshot } from '../../types/operations'
 
-export function useSensorCountdown(snapshot: OperationsSnapshot | null): number {
+function useSensorCountdown(snapshot: OperationsSnapshot | null): number {
   const until = snapshot?.sensor_countdown_until_ms ?? null
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
